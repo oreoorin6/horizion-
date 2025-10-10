@@ -1,0 +1,122 @@
+/* stylelint-disable at-rule-no-unknown */
+/* Allow Tailwind directives to be processed by PostCSS/Tailwind */
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+@layer base {
+  :root {
+    /* Light theme - keeping original for compatibility */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 0 72% 51%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 0 72% 51%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Dark burgundy/maroon theme to match the images */
+    --background: 345 35% 8%;
+    --foreground: 0 0% 95%;
+    --card: 345 25% 12%;
+    --card-foreground: 0 0% 95%;
+    --popover: 345 35% 10%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 0 72% 51%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 345 20% 18%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 345 15% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 345 30% 20%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 345 15% 20%;
+    --input: 345 20% 18%;
+    --ring: 0 72% 51%;
+  }
+
+  /* Force dark theme by default */
+  :root {
+    --background: 345 35% 8%;
+    --foreground: 0 0% 95%;
+    --card: 345 25% 12%;
+    --card-foreground: 0 0% 95%;
+    --popover: 345 35% 10%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 0 72% 51%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 345 20% 18%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 345 15% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 345 30% 20%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 345 15% 20%;
+    --input: 345 20% 18%;
+    --ring: 0 72% 51%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
+/* Custom range slider styles */
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  cursor: pointer;
+  border: 2px solid hsl(var(--background));
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.slider::-moz-range-thumb {
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  cursor: pointer;
+  border: 2px solid hsl(var(--background));
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}

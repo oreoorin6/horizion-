@@ -73,21 +73,50 @@ A modern, feature-rich desktop application for browsing e621.net. Built with Nex
 
 ## Installation
 
+### Quick Start (Recommended)
+
+**Automated Installation:**
+```cmd
+# Windows Batch (Simple)
+install-dependencies.bat
+
+# PowerShell (Advanced with options)
+.\install-dependencies.ps1
+
+# PowerShell with force clean install
+.\install-dependencies.ps1 -Force
+```
+
+The automated scripts will:
+- Verify Node.js installation (18+ required)
+- Update npm to latest version  
+- Clean existing dependencies
+- Install all required packages
+- Verify critical dependencies
+- Install global development tools
+
+📋 **See [DEPENDENCIES.md](./DEPENDENCIES.md) for detailed installation guide and troubleshooting.**
+
 ### Prerequisites
 
-- Node.js 18+ 
-- npm or yarn
+- **Node.js 18+** - [Download from nodejs.org](https://nodejs.org/)
+- **npm** (comes with Node.js)
+- **Git** (for cloning repository)
 
 ### Development Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/e621-horizon.git
-cd e621-horizon
+git clone https://github.com/oreoorin6/horizion-.git
+cd horizion-
 ```
 
-2. Install dependencies:
+2. Install dependencies (choose one method):
 ```bash
+# Automated (recommended)
+.\install-dependencies.ps1
+
+# Manual
 npm install
 ```
 

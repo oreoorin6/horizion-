@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useApiSearch } from '@/context/ApiSearchProvider'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { getImageUrl } from '@/lib/api/e621/utils'
@@ -12,12 +12,25 @@ import PostCard from '@/components/PostCard'
 import { useDownloadManager } from '@/lib/download-manager'
 import PostGridWithSelection from '@/components/download/PostGridWithSelection'
 import SelectionPanel from '@/components/download/SelectionPanel'
+import TagSuggestions from '@/components/TagSuggestions'
+import { useDebounce } from '@/hooks/useDebounce'
+import { useApi } from '@/hooks/useApi'
 
 export default function SearchPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [searchInput, setSearchInput] = useState('')
   const [selectedPost, setSelectedPost] = useState<E621Post | null>(null)
+  const [tagSuggestions, setTagSuggestions] = useState<any[]>([])
+  const [isTagLoading, setIsTagLoading] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  
+  // Refs to get current values in async callbacks
+  const currentStateRef = useRef({ posts: null as E621Post[] | null, loading: false, currentPage: 1 })
+  
+  // Get API client for tag searching
+  const e621api = useApi('e621') as any
+  const debouncedSearchInput = useDebounce(searchInput, 300)
   
   const { 
     posts, 
@@ -31,8 +44,9 @@ export default function SearchPage() {
     setPage
   } = useApiSearch()
   
-  // Debug log to ensure we're getting proper state
+  // Update state ref and debug log
   useEffect(() => {
+    currentStateRef.current = { posts, loading, currentPage };
     console.log(`[SearchPage] State update: ${posts?.length} posts, page ${currentPage}/${totalPages}, loading: ${loading}, query: "${searchQuery}"`)
     
     // Log current URL parameters
@@ -44,25 +58,67 @@ export default function SearchPage() {
       });
     }
   }, [posts, loading, currentPage, totalPages, searchQuery])
+
+  // Fetch tag suggestions when user types
+  useEffect(() => {
+    if (debouncedSearchInput.length > 2 && e621api) {
+      const fetchTags = async () => {
+        setIsTagLoading(true)
+        try {
+          console.log('[SearchPage] Searching tags for:', debouncedSearchInput)
+          const tags = await e621api.searchTags(debouncedSearchInput)
+          console.log('[SearchPage] Tag search results:', tags ? tags.length : 0)
+          
+          if (Array.isArray(tags)) {
+            setTagSuggestions(tags)
+          } else {
+            console.error('[SearchPage] Invalid tag search result:', tags)
+            setTagSuggestions([])
+          }
+        } catch (error) {
+          console.error('[SearchPage] Failed to fetch tags:', error)
+          setTagSuggestions([])
+        } finally {
+          setIsTagLoading(false)
+        }
+      }
+      fetchTags()
+    } else {
+      setTagSuggestions([])
+    }
+  }, [debouncedSearchInput, e621api])
+
   
   // Handle search form submission
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (searchInput.trim()) {
+      // Clear suggestions on submit
+      setTagSuggestions([])
       // Use window.location for full page navigation to update URL
       // Always reset to page 1 when submitting a new search
       window.location.href = `/search?tags=${encodeURIComponent(searchInput.trim())}&page=1`
     }
   }
   
-  // Effect to handle URL-based searches
+  // Handle tag selection from autocomplete
+  const handleTagSelect = (tag: string) => {
+    setSearchInput(tag)
+    setTagSuggestions([])
+    // Navigate to search with selected tag
+    window.location.href = `/search?tags=${encodeURIComponent(tag)}&page=1`
+  }
+  
+  // Effect to handle URL-based searches and post selection
   useEffect(() => {
     const tags = searchParams?.get('tags')
     const pageParam = searchParams?.get('page')
+    const postParam = searchParams?.get('post')
+    const expandParam = searchParams?.get('expand')
     const page = pageParam ? parseInt(pageParam, 10) : 1
     
     if (tags) {
-      console.log(`[SearchPage] Found tags in URL: ${tags}, page: ${page}`)
+      console.log(`[SearchPage] Found tags in URL: ${tags}, page: ${page}, post: ${postParam}, expand: ${expandParam}`)
       setSearchInput(tags)
       
       // Always make a new API request when URL parameters change
@@ -70,20 +126,104 @@ export default function SearchPage() {
       handleSearch(tags, page)
     }
   }, [searchParams, handleSearch])
+
+  // Effect to handle post selection after search results are loaded
+  useEffect(() => {
+    const postParam = searchParams?.get('post')
+    const expandParam = searchParams?.get('expand')
+    const selectIndexParam = searchParams?.get('selectIndex')
+    
+    // Only proceed if we have posts loaded and we're not currently loading
+    if (posts && posts.length > 0 && !loading) {
+      let targetPost = null;
+      
+      // Priority 1: Select by index (for homepage navigation)
+      if (selectIndexParam) {
+        const globalIndex = parseInt(selectIndexParam);
+        const localIndex = globalIndex % posts.length; // Map global index to current page posts
+        targetPost = posts[localIndex];
+        console.log(`[SearchPage] Auto-selecting post by index: global=${globalIndex}, local=${localIndex}, post=${targetPost?.id}`);
+      }
+      // Priority 2: Select by post ID
+      else if (postParam) {
+        targetPost = posts.find(post => post.id.toString() === postParam);
+        console.log(`[SearchPage] Auto-selecting post from URL: ${postParam}, expand mode: ${expandParam}`);
+        console.log(`[SearchPage] Searching for post ${postParam} in ${posts.length} posts: ${posts.map(p => p.id).join(', ')}`);
+      }
+      
+      if (targetPost) {
+        console.log(`[SearchPage] Target post found:`, {
+          id: targetPost.id,
+          file_url: targetPost.file?.url,
+          preview_url: targetPost.preview?.url
+        });
+        // Force a complete state refresh by clearing first, then setting
+        setSelectedPost(null);
+        setTimeout(() => {
+          setSelectedPost(targetPost);
+        }, 100); // Longer delay to ensure clean state transition
+      } else if (postParam || selectIndexParam) {
+        console.log(`[SearchPage] Target post not found in current results`);
+        
+        // If we have expand=true but the specific post wasn't found, 
+        // select the first post to keep the modal open
+        if (expandParam === 'true' && posts && posts.length > 0) {
+          console.log(`[SearchPage] Expand mode active, selecting first post as fallback: ${posts[0].id}`);
+          setSelectedPost(null);
+          setTimeout(() => {
+            setSelectedPost(posts[0]);
+          }, 100);
+        } else {
+          // Clear any existing selected post since the target wasn't found
+          setSelectedPost(null);
+        }
+      }
+      
+      // Clean up the URL parameters after a longer delay to ensure modal opens
+      setTimeout(() => {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('post');
+        newUrl.searchParams.delete('expand');
+        newUrl.searchParams.delete('selectIndex');
+        window.history.replaceState({}, '', newUrl.toString());
+      }, 500); // Increased delay to allow modal to fully initialize
+    } else if ((postParam || selectIndexParam) && loading) {
+      // If we have selection parameters but we're still loading, clear selected post
+      // to prevent showing the old post while loading
+      console.log(`[SearchPage] Search loading, clearing selected post temporarily`);
+      setSelectedPost(null);
+    }
+  }, [posts, searchParams, loading])
   
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Search</h1>
       
       <form onSubmit={submitSearch} className="mb-8">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Enter search tags..."
-            className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
-          />
+        <div className="flex gap-2 relative">
+          <div className="flex-1 relative">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Enter search tags..."
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+              onKeyDown={(e) => {
+                // Clear suggestions on Enter if no suggestion is selected
+                if (e.key === 'Enter') {
+                  setTagSuggestions([]);
+                }
+              }}
+            />
+            <TagSuggestions 
+              suggestions={tagSuggestions}
+              onSelect={handleTagSelect}
+              loading={isTagLoading}
+              onClickOutside={() => setTagSuggestions([])}
+              inputRef={searchInputRef}
+            />
+          </div>
           <button
             type="submit"
             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
@@ -170,7 +310,7 @@ export default function SearchPage() {
               
               <Pagination 
                 currentPage={currentPage} 
-                totalPages={posts.length > 0 ? Math.max(20, totalPages) : 0} 
+                totalPages={totalPages || 0} 
                 onPageChange={(page) => {
                   console.log(`[SearchPage] Navigating to page ${page}`);
                   
@@ -189,10 +329,65 @@ export default function SearchPage() {
       
       {/* Post Detail Modal */}
       <PostDetailModal 
+        key={selectedPost?.id || 'no-post'} // Force remount when post changes
         post={selectedPost} 
         onClose={() => {
           console.log('[SearchPage] Closing post detail modal');
           setSelectedPost(null);
+        }}
+        onNavigate={(post) => {
+          console.log('[SearchPage] Navigating to post:', post.id);
+          setSelectedPost(post);
+        }}
+        posts={posts || []}
+        currentIndex={selectedPost && posts ? posts.findIndex(p => p.id === selectedPost.id) : undefined}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        searchQuery={searchQuery}
+        onPageChange={async (newPage: number) => {
+          console.log(`[SearchPage] Modal requesting page change from ${currentPage} to ${newPage}`);
+          const isNextPage = newPage > currentPage;
+          
+          // Store navigation intent before page change
+          const navigationIntent = { isNext: isNextPage, newPage, oldPage: currentPage };
+          console.log(`[SearchPage] Navigation intent:`, navigationIntent);
+          
+          // Perform the search for the new page
+          await handleSearch(searchQuery, newPage);
+          
+          // Wait for the search to complete and posts to be available
+          const waitForPageLoad = (attempts = 0) => {
+            if (attempts > 40) { // Max 2 seconds
+              console.warn('[SearchPage] Timeout waiting for page change');
+              return;
+            }
+            
+            setTimeout(() => {
+              const currentState = currentStateRef.current;
+              console.log(`[SearchPage] Checking page load completion, attempt ${attempts + 1}`);
+              console.log(`[SearchPage] Current state - loading: ${currentState.loading}, currentPage: ${currentState.currentPage}, posts: ${currentState.posts?.length || 0}`);
+              
+              // Check if we're on the target page with posts loaded
+              if (!currentState.loading && currentState.currentPage === newPage && currentState.posts && currentState.posts.length > 0) {
+                console.log(`[SearchPage] Page ${newPage} loaded successfully with ${currentState.posts.length} posts`);
+                
+                if (navigationIntent.isNext) {
+                  // Going to next page - select first post
+                  console.log('[SearchPage] Auto-selecting first post of next page:', currentState.posts[0].id);
+                  setSelectedPost(currentState.posts[0]);
+                } else {
+                  // Going to previous page - select last post
+                  console.log('[SearchPage] Auto-selecting last post of previous page:', currentState.posts[currentState.posts.length - 1].id);
+                  setSelectedPost(currentState.posts[currentState.posts.length - 1]);
+                }
+              } else {
+                // Still loading or page not ready, try again
+                waitForPageLoad(attempts + 1);
+              }
+            }, 50);
+          };
+          
+          waitForPageLoad();
         }}
       />
       

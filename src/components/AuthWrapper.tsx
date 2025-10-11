@@ -22,7 +22,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     )
   }
 
-  // Show auth modal if not authenticated
+  // Show auth modal if not authenticated with e621 (required)
   if (!isAuthenticated) {
     return <AuthModal onLogin={login} />
   }

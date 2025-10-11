@@ -48,12 +48,12 @@ export default function AuthModal({ onLogin, isLoading = false, onClose }: AuthM
             <Lock className="h-8 w-8 text-primary" />
           </div>
           <h2 className="text-3xl font-bold leading-none tracking-tight text-foreground">
-            Authentication Required
+            E621 Authentication Required
           </h2>
           <p className="text-sm text-muted-foreground mt-2">
-            Please enter your e621 username and API key to continue.<br />
+            Please enter your e621.net username and API key to continue.<br />
             Your credentials are saved locally and are not sent to any<br />
-            server other than e621.net.
+            server other than e621.net. Other APIs can be configured in Settings.
           </p>
         </div>
 

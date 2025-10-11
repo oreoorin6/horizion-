@@ -1,6 +1,6 @@
 import { ApiClient } from '../api-client';
 import { RateLimiter } from '../rate-limiter';
-import { E621Post, E621Pool, SearchParams, E621Tag } from './types';
+import { E621Post, E621Pool, SearchParams, E621Tag, E621Comment, CommentSearchParams } from './types';
 import { IE621ApiClient } from '../IApiClient';
 import { apiManager } from '../ApiManager';
 
@@ -196,20 +196,91 @@ export class E621ApiClient extends ApiClient implements IE621ApiClient {
   }
 
   /**
+   * Override makeRequest to handle proxy vs direct API calls properly
+   */
+  protected async makeRequest<T>(endpoint: string, params?: Record<string, any>, method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET', body?: any): Promise<T> {
+    // In browser, use our custom proxy logic instead of the base class
+    if (typeof window !== 'undefined') {
+      // Use proxy approach for browser requests
+      const proxyUrl = new URL('/api/proxy', window.location.origin);
+      proxyUrl.searchParams.set('endpoint', endpoint.startsWith('/') ? endpoint.slice(1) : endpoint);
+      
+      // Add all the parameters to the proxy URL
+      if (params && method === 'GET') {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            if (Array.isArray(value)) {
+              proxyUrl.searchParams.set(key, value.join(','));
+            } else {
+              proxyUrl.searchParams.set(key, String(value));
+            }
+          }
+        });
+      }
+      
+      const headers: Record<string, string> = {
+        'Accept': 'application/json'
+      };
+      
+      if (method !== 'GET' && body) {
+        headers['Content-Type'] = 'application/json';
+      }
+      
+      const response = await fetch(proxyUrl.toString(), {
+        method,
+        headers,
+        body: method !== 'GET' ? JSON.stringify(body) : undefined,
+        cache: 'no-store'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      return response.json();
+    } else {
+      // For server-side, use the base class method with direct URL
+      return super.makeRequest(endpoint, params, method, body);
+    }
+  }
+
+  /**
    * Test if the current credentials are valid
    * @returns Promise resolving to true if credentials are valid
    */
   public async testCredentials(): Promise<boolean> {
     try {
-      // Using the favorites endpoint as it requires authentication
-      const result = await this.makeRequest('/favorites.json', { limit: 1 });
+      // Using a simple posts endpoint with authentication to test credentials
+      // The favorites endpoint might not exist or require different permissions
+      console.log('[E621API] Testing credentials with posts endpoint...');
+      const result = await this.makeRequest('/posts.json', { limit: 1 });
+      
+      // If we get here without an error, the credentials are working
+      console.log('[E621API] Credential test successful');
       return true;
     } catch (error) {
-      if (error instanceof Error && error.message.includes('401')) {
-        console.error('[E621API] Authentication failed: Invalid credentials');
-      } else {
-        console.error('[E621API] Credential test failed:', error);
+      console.error('[E621API] Credential test failed:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('401') || error.message.includes('403')) {
+          console.error('[E621API] Authentication failed: Invalid credentials');
+          return false;
+        } else if (error.message.includes('404')) {
+          console.error('[E621API] Endpoint not found, but this might not indicate invalid credentials');
+          // A 404 on posts.json would be very unusual, so let's try a different approach
+          try {
+            // Try with a different endpoint that should always exist
+            console.log('[E621API] Trying alternative credential test...');
+            const fallbackResult = await this.makeRequest('/tags.json', { limit: 1 });
+            console.log('[E621API] Fallback credential test successful');
+            return true;
+          } catch (fallbackError) {
+            console.error('[E621API] Fallback credential test also failed:', fallbackError);
+            return false;
+          }
+        }
       }
+      
       return false;
     }
   }
@@ -420,16 +491,29 @@ export class E621ApiClient extends ApiClient implements IE621ApiClient {
             console.log('[E621API] No posts found for query:', tags);
           }
           
-          // Calculate a more accurate total pages value
-          // E621 typically returns a specific number of posts per page (up to the limit)
-          // If we get a full page of results (same as limit), there are likely more pages
+          // Calculate total pages based on E621 API behavior
+          // E621 API returns up to 'limit' posts per page
+          // If we get a full page, there are likely more pages available
           const postsPerPage = searchParams.limit || 50;
           const hasMorePages = validPosts.length >= postsPerPage;
-          const estimatedTotalPages = hasMorePages ? 
-            Math.max(Number(searchParams.page) + 20, 50) :   // If we have a full page, there are likely many more pages
-            Math.max(Number(searchParams.page), 1);          // Otherwise, this is likely the last page
           
-          console.log(`[E621API] Estimated total pages: ${estimatedTotalPages} (current page: ${searchParams.page}, posts: ${validPosts.length}/${postsPerPage})`);
+          // E621 has a max of 750 pages, so we cap at that
+          // If we got a full page, assume there are many more pages (estimate conservatively)
+          let estimatedTotalPages;
+          if (hasMorePages) {
+            // If we're getting full pages, estimate based on current page
+            // E621 typically has thousands of results for popular tags
+            if (Number(searchParams.page) < 10) {
+              estimatedTotalPages = 750; // Max pages allowed by E621
+            } else {
+              estimatedTotalPages = Math.min(Number(searchParams.page) + 100, 750);
+            }
+          } else {
+            // If we got less than a full page, this is likely the last page
+            estimatedTotalPages = Number(searchParams.page);
+          }
+          
+          console.log(`[E621API] Estimated total pages: ${estimatedTotalPages} (current page: ${searchParams.page}, posts: ${validPosts.length}/${postsPerPage}, hasMorePages: ${hasMorePages})`);
           
           return { 
             posts: validPosts,
@@ -474,10 +558,25 @@ export class E621ApiClient extends ApiClient implements IE621ApiClient {
             const validPosts = result.posts.filter(post => post && typeof post === 'object' && post.id);
             console.log(`[E621API] Request completed: tags=${tags}, got ${validPosts.length} valid posts`);
             
+            // Server-side estimation for total pages
+            const postsPerPage = searchParams.limit || 50;
+            const hasMorePages = validPosts.length >= postsPerPage;
+            
+            let estimatedTotalPages;
+            if (hasMorePages) {
+              if (Number(searchParams.page) < 10) {
+                estimatedTotalPages = 750; // Max pages allowed by E621
+              } else {
+                estimatedTotalPages = Math.min(Number(searchParams.page) + 100, 750);
+              }
+            } else {
+              estimatedTotalPages = Number(searchParams.page);
+            }
+            
             return { 
               posts: validPosts,
               page: Number(searchParams.page) || 1,
-              totalPages: validPosts.length > 0 ? Math.max(Number(searchParams.page) + 1, 10) : 0 
+              totalPages: estimatedTotalPages
             };
           });
       }
@@ -516,8 +615,195 @@ export class E621ApiClient extends ApiClient implements IE621ApiClient {
     return this.makeRequest<{ post: E621Post }>(`/posts/${id}.json`);
   }
 
+  /**
+   * Get adjacent posts in sequence (next/previous)
+   * @param id Post ID to get adjacent posts for
+   * @param direction Direction to get adjacent post ('next' or 'prev')
+   * @returns Promise with adjacent post or null if none exists
+   */
+  public async getAdjacentPost(id: number, direction: 'next' | 'prev'): Promise<E621Post | null> {
+    try {
+      console.log(`[E621API] Getting ${direction} post for ID: ${id}`);
+      
+      let requestPromise;
+      
+      if (typeof window !== 'undefined') {
+        // Use proxy for browser requests
+        const proxyUrl = new URL('/api/proxy', window.location.origin);
+        proxyUrl.searchParams.set('endpoint', `posts/${id}/show_seq.json`);
+        proxyUrl.searchParams.set('seq', direction);
+        
+        console.log('[E621API] Adjacent post proxy URL:', proxyUrl.toString());
+        
+        requestPromise = fetch(proxyUrl.toString(), {
+          headers: {
+            'Accept': 'application/json'
+          },
+          cache: 'no-store'
+        })
+        .then(async response => {
+          if (response.status === 404) {
+            // No adjacent post exists
+            console.log(`[E621API] No ${direction} post found for ID: ${id}`);
+            return null;
+          }
+          
+          if (!response.ok) {
+            throw new Error(`Adjacent post request failed: ${response.status} ${response.statusText}`);
+          }
+          
+          const result = await response.json();
+          return result.post || result; // API may return the post directly or wrapped
+        });
+      } else {
+        // Direct API access for server-side
+        requestPromise = this.makeRequest<{ post: E621Post } | E621Post>(`/posts/${id}/show_seq.json`, { seq: direction })
+          .then(result => {
+            if (!result) return null;
+            return (result as any).post || result;
+          });
+      }
+      
+      const adjacentPost = await requestPromise;
+      
+      if (adjacentPost && adjacentPost.id) {
+        console.log(`[E621API] Found ${direction} post:`, adjacentPost.id);
+        return adjacentPost;
+      }
+      
+      console.log(`[E621API] No ${direction} post available for ID: ${id}`);
+      return null;
+      
+    } catch (error) {
+      console.error(`[E621API] Error getting ${direction} post for ID ${id}:`, error);
+      return null;
+    }
+  }
+
   public async getPool(id: number): Promise<E621Pool> {
     return this.makeRequest<E621Pool>(`/pools/${id}.json`);
+  }
+
+  public async getComments(params: CommentSearchParams = {}): Promise<E621Comment[]> {
+    console.log(`[E621API] Fetching comments with params:`, params);
+    
+    const searchParams: Record<string, any> = {
+      limit: Math.min(params.limit || 50, 320),
+      page: params.page || 1,
+    };
+
+    if (params.post_id) {
+      searchParams['search[post_id]'] = params.post_id;
+    }
+    
+    if (params.creator_id) {
+      searchParams['search[creator_id]'] = params.creator_id;
+    }
+    
+    if (params.creator_name) {
+      searchParams['search[creator_name]'] = params.creator_name;
+    }
+    
+    if (params.body_matches) {
+      searchParams['search[body_matches]'] = params.body_matches;
+    }
+    
+    if (params.order) {
+      searchParams['search[order]'] = params.order;
+    }
+
+    try {
+      // Generate a cache key from the comment search parameters
+      const cacheKey = JSON.stringify({
+        endpoint: '/comments.json',
+        params: searchParams
+      });
+      
+      // Check if we have a recent cached request (within 5 seconds for comments)
+      const now = Date.now();
+      const cachedRequest = requestCache[cacheKey];
+      
+      if (cachedRequest && now - cachedRequest.timestamp < 5000) {
+        console.log('[E621API] Using cached comment search for post:', params.post_id);
+        return cachedRequest.promise;
+      }
+      
+      console.log('[E621API] Making new comment API request for post:', params.post_id);
+      
+      let requestPromise;
+      
+      // In browser environment, use our proxy
+      if (typeof window !== 'undefined') {
+        const proxyUrl = new URL('/api/proxy', window.location.origin);
+        proxyUrl.searchParams.set('endpoint', 'comments.json');
+        
+        // Add search parameters to the query string
+        Object.entries(searchParams).forEach(([key, value]) => {
+          proxyUrl.searchParams.set(key, String(value));
+        });
+        
+        console.log('[E621API] Comment search proxy URL:', proxyUrl.toString());
+        
+        requestPromise = fetch(proxyUrl.toString(), {
+          headers: {
+            'Accept': 'application/json'
+          },
+          cache: 'no-store'
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Comment search failed: ${response.status} ${response.statusText}`);
+          }
+          return response.json();
+        });
+      } else {
+        // For server environment, use direct API client
+        requestPromise = this.makeRequest<E621Comment[]>('/comments.json', searchParams);
+      }
+      
+      // Store in cache
+      requestCache[cacheKey] = {
+        promise: requestPromise,
+        timestamp: now
+      };
+      
+      // Clean up old cache entries after 10 seconds
+      setTimeout(() => {
+        delete requestCache[cacheKey];
+      }, 10000);
+      
+      const results = await requestPromise;
+      
+      // Handle different response formats from e621 API
+      let comments: E621Comment[];
+      
+      // Handle empty object first (common case for posts with no comments)
+      if (results && typeof results === 'object' && !Array.isArray(results) && Object.keys(results).length === 0) {
+        // Empty object response - no comments for this post
+        console.log(`[E621API] No comments found for post ${params.post_id} (empty object response)`);
+        return [];
+      } else if (Array.isArray(results)) {
+        // Direct array response
+        comments = results;
+      } else if (results && typeof results === 'object' && Array.isArray(results.comments)) {
+        // Object response with comments property
+        comments = results.comments;
+      } else if (results && typeof results === 'object' && results.data && Array.isArray(results.data)) {
+        // Some APIs wrap data in a data property
+        comments = results.data;
+      } else {
+        console.error('[E621API] Invalid comment search results structure:', results);
+        console.error('[E621API] Expected array or object with comments property, got:', typeof results, results);
+        return [];
+      }
+      
+      console.log(`[E621API] Comment search for post ${params.post_id} returned ${comments.length} results`);
+      return comments;
+      
+    } catch (error) {
+      console.error('[E621API] Comment search error:', error);
+      return [];
+    }
   }
 
   public async searchTags(query: string): Promise<{ id: number; name: string; post_count: number; category: number }[]> {

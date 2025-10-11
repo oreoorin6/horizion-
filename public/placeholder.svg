@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+  <!-- Background -->
+  <rect width="300" height="300" fill="#1f2937" />
+  
+  <!-- Image frame -->
+  <rect x="75" y="100" width="150" height="100" stroke="#4b5563" stroke-width="4" fill="none" />
+  
+  <!-- Mountain in frame -->
+  <polygon points="75,200 125,150 150,175 200,125 225,150 225,200" fill="#374151" />
+  
+  <!-- Sun in frame -->
+  <circle cx="200" cy="125" r="15" fill="#6b7280" />
+  
+  <!-- Text -->
+  <text x="150" y="240" font-size="16" fill="#9ca3af" text-anchor="middle" font-family="Arial, sans-serif">Image Not Available</text>
+</svg>

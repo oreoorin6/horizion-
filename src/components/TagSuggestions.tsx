@@ -84,7 +84,7 @@ const TagSuggestions: React.FC<TagSuggestionsProps> = ({
   
   if (loading) {
     return (
-      <div ref={dropdownRef} className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-md shadow-lg z-10 p-4">
+      <div ref={dropdownRef} className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-md shadow-lg z-50 p-4">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
@@ -95,7 +95,7 @@ const TagSuggestions: React.FC<TagSuggestionsProps> = ({
   }
 
   return (
-    <div ref={dropdownRef} className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-md shadow-lg z-10">
+    <div ref={dropdownRef} className="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-md shadow-lg z-50">
       <ul>
         {suggestions.map((suggestion, index) => (
           <li

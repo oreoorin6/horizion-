@@ -6,6 +6,8 @@ import { E621Post } from '@/lib/api/e621/types';
 import { PlaySquare } from 'lucide-react';
 import { refreshImageElement } from '@/lib/utils';
 import PostSelectionOverlay from './post/PostSelectionOverlay';
+import { BlacklistedPostCover } from '@/components/BlacklistedPostCover';
+import { useBlacklist } from '@/hooks/useBlacklist';
 
 interface PostCardProps {
   post: E621Post;
@@ -14,6 +16,23 @@ interface PostCardProps {
 
 export default function PostCard({ post, onClick }: PostCardProps) {
   const [imageError, setImageError] = useState(false);
+  const [blacklistRevealed, setBlacklistRevealed] = useState(false);
+  
+  const { settings, isPostBlacklisted } = useBlacklist();
+
+  // Check if post is blacklisted
+  const allTags = post.tags ? [
+    ...post.tags.general,
+    ...post.tags.species,
+    ...post.tags.character,
+    ...post.tags.copyright,
+    ...post.tags.artist,
+    ...post.tags.invalid,
+    ...post.tags.lore,
+    ...post.tags.meta,
+  ] : [];
+  
+  const blacklistResult = isPostBlacklisted(allTags, post.rating);
 
   // Get the best available preview image
   const previewUrl = getImageUrl(post, 'preview');
@@ -23,6 +42,11 @@ export default function PostCard({ post, onClick }: PostCardProps) {
   // Handle image click
   const handleClick = () => {
     if (onClick) onClick(post);
+  };
+
+  // Handle blacklist reveal
+  const handleBlacklistReveal = () => {
+    setBlacklistRevealed(true);
   };
 
   // Handle image error - avoid setState to prevent infinite re-renders
@@ -65,6 +89,32 @@ export default function PostCard({ post, onClick }: PostCardProps) {
     img.style.display = 'none';
   };
 
+  // If post is blacklisted and we're in cover mode, show the blacklist cover
+  if (blacklistResult.blocked && settings.mode === 'cover' && !blacklistRevealed) {
+    return (
+      <div 
+        className="aspect-square"
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent triggering parent click handlers
+        }}
+      >
+        <BlacklistedPostCover
+          post={post}
+          matchedEntries={blacklistResult.matchedEntries}
+          showBlockedTags={settings.showBlockedTags}
+          onReveal={handleBlacklistReveal}
+          className="aspect-square cursor-pointer"
+        />
+      </div>
+    );
+  }
+
+  // If post is blacklisted and we're in hide mode, don't render anything
+  // (This should be handled by the search API, but this is a fallback)
+  if (blacklistResult.blocked && settings.mode === 'hide' && !blacklistRevealed) {
+    return null;
+  }
+
   return (
     <div 
       className="relative overflow-hidden rounded-xl bg-card shadow-md hover:shadow-lg transition-shadow duration-200 cursor-pointer aspect-square"
@@ -90,6 +140,13 @@ export default function PostCard({ post, onClick }: PostCardProps) {
           'bg-red-500'
         }`} />
       </div>
+      
+      {/* Blacklist revealed indicator (subtle) */}
+      {blacklistResult.blocked && blacklistRevealed && (
+        <div className="absolute bottom-2 left-2 bg-orange-500/80 px-2 py-1 rounded text-xs text-white">
+          Revealed
+        </div>
+      )}
       
       {previewUrl ? (
         <img

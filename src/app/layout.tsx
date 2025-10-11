@@ -5,6 +5,7 @@ import ApiProvider from '@/context/ApiProvider';
 import { SearchProvider } from '@/context/SearchProvider'
 import { DownloadManagerProvider } from '../lib/download-manager'
 import ClientDownloadPanel from '../components/ClientDownloadPanel'
+import DebugConsole from '../components/DebugConsole'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -27,6 +28,7 @@ export default function RootLayout({
               <div className="bg-overlay fixed inset-0 bg-background/80 backdrop-blur-sm" style={{ zIndex: -1 }} />
               {children}
               <ClientDownloadPanel />
+              <DebugConsole title="E621 Horizon Debug Console" />
             </DownloadManagerProvider>
           </SearchProvider>
         </ApiProvider>

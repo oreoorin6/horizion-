@@ -1,345 +1,66 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import AppHeader from '@/components/AppHeader'
 import AuthWrapper from '@/components/AuthWrapper'
 import SettingsModal from '@/components/SettingsModal'
 import ErrorBoundary from '@/components/ErrorBoundary'
-import DebugConsole from '@/components/DebugConsole'
-import NetworkErrorBanner from '@/components/NetworkErrorBanner'
-import ApiDebugTool from '@/components/ApiDebugTool'
-import { PlaceholderSVG } from '@/components/ui/placeholder-image'
-import { useSearch } from '@/context/SearchContext'
-import { getImageUrl } from '@/lib/api/e621/utils';
+import HomepageSettings from '@/components/HomepageSettings'
+import TagSectionDisplay from '@/components/TagSectionDisplay'
+import { useHomeSettings } from '@/hooks/useHomeSettings'
 import { useSearchParams } from 'next/navigation'
 import PostDetailModal from '@/components/PostDetailModal'
 import { E621Post } from '@/lib/api/e621/types'
 
-export default function HomePage() {
+function HomePageContent() {
   const [showSettings, setShowSettings] = useState(false)
+  const [showHomepageSettings, setShowHomepageSettings] = useState(false)
   const [selectedPost, setSelectedPost] = useState<E621Post | null>(null)
-  const { posts, loading, error, handleSearch, selectPost } = useSearch()
+  const [currentSectionPosts, setCurrentSectionPosts] = useState<E621Post[]>([])
+  const [currentPostIndex, setCurrentPostIndex] = useState<number | undefined>(undefined)
+  const [currentSearchTags, setCurrentSearchTags] = useState<string>('')
+  const { settings } = useHomeSettings()
   const searchParams = useSearchParams()
 
-  // Store search state to preserve results between renders
-  const [persistentSearch, setPersistentSearch] = useState<{
-    query: string | null;
-    hasResults: boolean;
-  }>({ query: null, hasResults: false });
-  
-  // We need to handle the initial search when the component mounts
-  // and subsequent searches when the URL changes
-  const prevTagsRef = useRef<string | null>(null);
-  
+  // Handle URL search params by redirecting to search page
   useEffect(() => {
-    const tags = searchParams?.get('tags');
-    
-    // Only perform search if tags exist and are different from previous search
-    if (tags && prevTagsRef.current !== tags) {
-      console.log(`Page performing search for tags: ${tags}`);
-      prevTagsRef.current = tags;
-      
-      // Redirect to the new search page for better results
-      window.location.href = `/search?tags=${encodeURIComponent(tags)}`;
+    const tags = searchParams?.get('tags')
+    if (tags) {
+      console.log(`[HomePage] Redirecting to search page for tags: ${tags}`)
+      window.location.href = `/search?tags=${encodeURIComponent(tags)}`
     }
   }, [searchParams])
 
-  // Debug function to log search state
-  const logSearchState = () => {
-    console.log('[HomePage] Current search state:', {
-      loading,
-      error,
-      postsCount: posts?.length || 0,
-      postsValid: Boolean(posts && Array.isArray(posts)),
-      persistentSearch,
-      searchParams: searchParams ? Object.fromEntries(searchParams.entries()) : {}
-    });
-    
-    // Test direct API access if no posts are found
-    if (!posts || posts.length === 0) {
-      console.log('[HomePage] Testing direct API access due to missing posts...');
-      import('@/lib/api/e621').then(({ e621api }) => {
-        if (e621api && typeof e621api.testDirectApiAccess === 'function') {
-          e621api.testDirectApiAccess()
-            .then(result => console.log('[HomePage] Direct API test result:', result))
-            .catch(err => console.error('[HomePage] Direct API test failed:', err));
-        } else {
-          console.error('[HomePage] Could not access e621api or testDirectApiAccess method');
-        }
-      });
-    }
-  };
-
-  // Call debug logging on mount and when search state changes
-  useEffect(() => {
-    logSearchState();
-  }, [posts, loading, error, persistentSearch]);
-
   const renderContent = () => {
-    // Always show loading state when loading
-    if (loading) {
-      console.log('[HomePage] Rendering loading state');
+    // Check if user has custom tag sections configured
+    const hasCustomSections = settings.tagSections.length > 0
+    
+    // Show custom homepage if configured
+    if (hasCustomSections) {
       return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {Array.from({ length: 24 }).map((_, i) => (
-            <div key={i} className="group relative aspect-square overflow-hidden rounded-xl bg-muted/30 border border-border/50 shadow-sm">
-              <div className="animate-pulse bg-muted/50 h-full w-full"></div>
-            </div>
-          ))}
-        </div>
-      )
-    }
-
-    // Show error if there's an error
-    if (error) {
-      console.log('[HomePage] Rendering error state:', error);
-      
-      // Check if it's a network/CORS related error
-      const isNetworkError = error.toLowerCase().includes('network') || 
-                             error.toLowerCase().includes('cors') ||
-                             error.toLowerCase().includes('connection');
-      
-      return (
-        <div className="text-center py-8">
-          {isNetworkError ? (
-            <div className="max-w-2xl mx-auto">
-              <NetworkErrorBanner 
-                error={error} 
-                onRetry={() => {
-                  console.log('[HomePage] Retrying search after error...');
-                  const tags = searchParams?.get('tags');
-                  if (tags) {
-                    handleSearch(tags);
-                  } else {
-                    // Try a simple test search if no search params
-                    handleSearch("safe");
-                  }
-                }} 
-              />
-              
-              {/* Add API debug tool to help diagnose issues */}
-              <ApiDebugTool />
-            </div>
-          ) : (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-xl mx-auto">
-              <h3 className="text-lg font-medium text-red-800 mb-2">Error</h3>
-              <p className="text-red-700">{error}</p>
-              <div className="mt-4">
-                <button 
-                  onClick={() => {
-                    console.log('[HomePage] Debug button clicked');
-                    logSearchState();
-                  }}
-                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-md text-sm"
-                >
-                  Log Debug Info
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // Show posts if we have them
-    if (Array.isArray(posts) && posts.length > 0) {
-      console.log(`[HomePage] Rendering ${posts.length} posts from search results`);
-      // Log detailed post data for debugging
-      if (posts[0]) {
-        console.log('[HomePage] First post data structure:', {
-          id: posts[0].id,
-          file: posts[0].file ? {
-            url: posts[0].file.url,
-            ext: posts[0].file.ext
-          } : 'missing file',
-          preview: posts[0].preview ? {
-            url: posts[0].preview.url
-          } : 'missing preview'
-        });
-      }
-      console.log('[HomePage] Posts array type:', Object.prototype.toString.call(posts));
-      
-      // Check if we have any valid posts with images
-      const postsWithImages = posts.filter(post => 
-        post && 
-        post.id && 
-        ((post.preview && post.preview.url) || 
-         (post.file && post.file.url))
-      );
-      
-      if (postsWithImages.length === 0) {
-        console.warn('[HomePage] No posts with valid images found');
-        return (
-          <div className="text-center py-16">
-            <p className="text-xl text-muted-foreground mb-4">Posts were found, but they don't contain valid images.</p>
-            <button 
-              onClick={() => {
-                console.log('[HomePage] Debug button clicked');
-                logSearchState();
-              }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm"
-            >
-              Debug Search Results
-            </button>
-          </div>
-        );
-      }
-      
-      return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          {posts.map(post => {
-            // Ensure we have valid post data before rendering
-            if (!post || !post.id) {
-              console.warn('[HomePage] Invalid post data found in results:', post);
-              return null;
-            }
-            
-            // Get image URL safely
-            const imageUrl = getImageUrl(post, 'preview');
-            
-            if (!imageUrl) {
-              console.warn(`[HomePage] No preview URL for post ${post.id}`);
-            }
-            
-            return (
-              <div
-                key={post.id}
-                className="group relative aspect-square overflow-hidden rounded-xl bg-muted/30 border border-border/50 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:scale-[1.02]"
-                onClick={() => {
-                  console.log(`[HomePage] Post ${post.id} clicked, opening modal`);
-                  setSelectedPost(post);
-                  selectPost(post); // Also update the API state
-                }}
-              >
-                {/* Refresh button that's always available when hovering */}
-                <button 
-                  className="absolute top-2 right-2 z-10 bg-green-600/80 backdrop-blur-sm rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-green-600"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    console.log(`Manually refreshing post ${post.id}`);
-                    
-                    // Find the img element
-                    const imgElement = e.currentTarget.parentElement?.querySelector('img');
-                    if (imgElement && imageUrl) {
-                      // Import the refresh function
-                      import('@/lib/utils').then(({ refreshImage }) => {
-                        refreshImage(imgElement, imageUrl, post.id);
-                      });
-                    }
-                  }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                  </svg>
-                </button>
-                
-                <img
-                  src={imageUrl || '/placeholder.svg'}
-                  alt={`Post ${post.id}`}
-                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  loading="lazy"
-                  onError={(e) => {
-                    console.warn(`Failed to load image for post ${post.id}`);
-                    // Log detailed post structure for debugging
-                    console.log(`Post with failed image load:`, JSON.stringify({
-                      id: post.id,
-                      hasPreview: Boolean(post.preview),
-                      previewUrl: post.preview?.url,
-                      hasSample: post.sample?.has,
-                      sampleUrl: post.sample?.url,
-                      fileUrl: post.file?.url
-                    }));
-                    
-                    // Replace with an error container with SVG placeholder and refresh button
-                    const img = e.currentTarget;
-                    const parent = img.parentElement;
-                    if (parent) {
-                      // Create error container
-                      const errorContainer = document.createElement('div');
-                      errorContainer.className = 'h-full w-full bg-gray-800 flex flex-col items-center justify-center error-container';
-                      
-                      // Add SVG placeholder
-                      const svgContainer = document.createElement('div');
-                      svgContainer.className = 'mb-2';
-                      svgContainer.innerHTML = `
-                        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 100 100">
-                          <rect width="100" height="100" fill="#1f2937" />
-                          <path d="M30,40 L70,40 L70,70 L30,70 Z" stroke="#4b5563" strokeWidth="2" fill="none" />
-                          <text x="50" y="55" fontSize="12" fill="#9ca3af" textAnchor="middle">Image Error</text>
-                        </svg>
-                      `;
-                      errorContainer.appendChild(svgContainer);
-                      
-                      // Add refresh button
-                      const refreshBtn = document.createElement('button');
-                      refreshBtn.className = 'px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded-md flex items-center';
-                      refreshBtn.innerHTML = `
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-                        </svg>
-                        Refresh
-                      `;
-                      
-                      // Add click handler to refresh the image
-                      refreshBtn.onclick = (event) => {
-                        event.stopPropagation(); // Prevent opening the post details modal
-                        
-                        // Import the refresh function and use it
-                        import('@/lib/utils').then(({ refreshImage }) => {
-                          if (imageUrl) {
-                            refreshImage(img, imageUrl, post.id);
-                          }
-                        });
-                      };
-                      
-                      errorContainer.appendChild(refreshBtn);
-                      
-                      // Hide the image and add the error container
-                      img.style.display = 'none';
-                      parent.appendChild(errorContainer);
-                    }
+        <>
+          <HomepageSettings 
+            isVisible={showHomepageSettings}
+            onToggle={() => setShowHomepageSettings(!showHomepageSettings)}
+          />
+          
+          <div className="space-y-8">
+            {settings.tagSections
+              .filter(section => section.enabled)
+              .map((section) => (
+                <TagSectionDisplay
+                  key={section.id}
+                  section={section}
+                  onPostClick={(post, sectionPosts, postIndex, searchTags) => {
+                    setSelectedPost(post)
+                    setCurrentSectionPosts(sectionPosts)
+                    setCurrentPostIndex(postIndex)
+                    setCurrentSearchTags(searchTags)
                   }}
                 />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200" />
-                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm rounded-md px-2 py-1 text-xs text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                  {post.score?.total || 'N/A'}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )
-    }
-    
-    // If we have a persistent search but no posts, show no results message
-    if (persistentSearch.hasResults && persistentSearch.query) {
-      console.log('[HomePage] Rendering no results state with persistent search:', persistentSearch);
-      return (
-        <div className="text-center py-16">
-          <p className="text-xl text-muted-foreground mb-4">No posts found. Try adjusting your search terms or filters.</p>
-          
-          <details className="max-w-xl mx-auto bg-gray-800 rounded-lg p-4 text-left">
-            <summary className="text-sm text-gray-400 cursor-pointer">Debug Information</summary>
-            <div className="mt-4 text-xs font-mono text-gray-300 overflow-auto">
-              <p>Search Query: {persistentSearch.query}</p>
-              <p>Posts Array Length: {posts ? posts.length : 'null'}</p>
-              <p>Has Error: {error ? 'Yes' : 'No'}</p>
-              <p>Loading State: {loading ? 'Yes' : 'No'}</p>
-              <p>URL Parameters: {searchParams ? JSON.stringify(Object.fromEntries(searchParams.entries())) : 'None'}</p>
-              <button 
-                onClick={() => {
-                  console.log('[HomePage] Re-triggering search for:', persistentSearch.query);
-                  if (persistentSearch.query) {
-                    handleSearch(persistentSearch.query);
-                  }
-                }}
-                className="mt-2 px-3 py-1 bg-blue-600 text-white rounded text-xs"
-              >
-                Retry Search
-              </button>
-            </div>
-          </details>
-        </div>
+              ))}
+          </div>
+        </>
       )
     }
 
@@ -357,6 +78,26 @@ export default function HomePage() {
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
             A modern, feature-rich desktop browser for e621.net with advanced search capabilities and enhanced user experience.
           </p>
+          
+          <div className="mb-8">
+            <button
+              onClick={() => setShowHomepageSettings(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-medium transition-colors"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Customize Your Homepage
+            </button>
+            <p className="text-sm text-muted-foreground mt-2">
+              Add tag sections to create your personalized content feed
+            </p>
+          </div>
+          
+          <HomepageSettings 
+            isVisible={showHomepageSettings}
+            onToggle={() => setShowHomepageSettings(!showHomepageSettings)}
+          />
         </div>
       </div>
     )
@@ -381,18 +122,134 @@ export default function HomePage() {
         onClose={() => setShowSettings(false)} 
       />
       
-      {/* Debug console */}
-      <DebugConsole title="E621 Horizon Debug Console" />
-      
       {/* Post Detail Modal */}
       <PostDetailModal 
+        key={selectedPost?.id || 'no-post'} // Force remount when post changes
         post={selectedPost} 
         onClose={() => {
           console.log('[HomePage] Closing post detail modal');
           setSelectedPost(null);
+          setCurrentSectionPosts([]);
+          setCurrentPostIndex(undefined);
+          setCurrentSearchTags('');
+        }}
+        onNavigate={(post) => {
+          console.log('[HomePage] Navigating to post:', post.id);
+          setSelectedPost(post);
+          // Update the index when navigating within the same section
+          const newIndex = currentSectionPosts.findIndex(p => p.id === post.id);
+          if (newIndex >= 0) {
+            setCurrentPostIndex(newIndex);
+          }
+        }}
+        posts={currentSectionPosts}
+        currentIndex={currentPostIndex}
+        currentPage={1} // Homepage sections show first page results  
+        totalPages={2} // Indicate more results available
+        searchQuery={currentSearchTags}
+        onPageChange={async (newPage: number) => {
+          console.log(`[HomePage] Modal requesting page change to ${newPage} for tags: ${currentSearchTags}`);
+          
+          if (!selectedPost || currentPostIndex === undefined) {
+            // No post selected, redirect to search
+            const searchUrl = `/search?tags=${encodeURIComponent(currentSearchTags)}&expand=true`;
+            window.location.href = searchUrl;
+            return;
+          }
+          
+          try {
+            // Import the API client dynamically
+            const { e621api } = await import('@/lib/api/e621');
+            
+            if (newPage > 1) {
+              // Going forward - try to find the next post in the full search results
+              console.log(`[HomePage] Finding next post after ${selectedPost.id} for tags: ${currentSearchTags}`);
+              
+              // Search for more posts with the same tags to find the next one
+              const searchResult = await e621api.searchPosts({
+                tags: currentSearchTags,
+                limit: 50, // Get more posts to find the next one
+                page: 1
+              });
+              
+              if (searchResult && searchResult.posts) {
+                // Find current post in the full results
+                const currentPostIndexInFullResults = searchResult.posts.findIndex(p => p.id === selectedPost.id);
+                
+                if (currentPostIndexInFullResults >= 0 && currentPostIndexInFullResults < searchResult.posts.length - 1) {
+                  // Found next post in the full results
+                  const nextPost = searchResult.posts[currentPostIndexInFullResults + 1];
+                  console.log(`[HomePage] Found next post in search results: ${nextPost.id}`);
+                  setSelectedPost(nextPost);
+                  
+                  // Update the section posts to include the extended results
+                  setCurrentSectionPosts(searchResult.posts);
+                  setCurrentPostIndex(currentPostIndexInFullResults + 1);
+                  return;
+                } else {
+                  // Need to search the next page
+                  const nextPageResult = await e621api.searchPosts({
+                    tags: currentSearchTags,
+                    limit: 50,
+                    page: 2
+                  });
+                  
+                  if (nextPageResult && nextPageResult.posts && nextPageResult.posts.length > 0) {
+                    const nextPost = nextPageResult.posts[0];
+                    console.log(`[HomePage] Found next post in page 2: ${nextPost.id}`);
+                    setSelectedPost(nextPost);
+                    setCurrentSectionPosts([...searchResult.posts, ...nextPageResult.posts]);
+                    setCurrentPostIndex(searchResult.posts.length);
+                    return;
+                  }
+                }
+              }
+            } else {
+              // Going backward - similar logic but in reverse
+              console.log(`[HomePage] Finding previous post before ${selectedPost.id} for tags: ${currentSearchTags}`);
+              
+              const searchResult = await e621api.searchPosts({
+                tags: currentSearchTags,
+                limit: 50,
+                page: 1
+              });
+              
+              if (searchResult && searchResult.posts) {
+                const currentPostIndexInFullResults = searchResult.posts.findIndex(p => p.id === selectedPost.id);
+                
+                if (currentPostIndexInFullResults > 0) {
+                  const prevPost = searchResult.posts[currentPostIndexInFullResults - 1];
+                  console.log(`[HomePage] Found previous post in search results: ${prevPost.id}`);
+                  setSelectedPost(prevPost);
+                  setCurrentSectionPosts(searchResult.posts);
+                  setCurrentPostIndex(currentPostIndexInFullResults - 1);
+                  return;
+                }
+              }
+            }
+            
+            // If we couldn't find the next/previous post, redirect to search as fallback
+            console.log(`[HomePage] Could not find next/previous post, redirecting to search`);
+            const searchUrl = `/search?tags=${encodeURIComponent(currentSearchTags)}&post=${selectedPost.id}&expand=true`;
+            window.location.href = searchUrl;
+            
+          } catch (error) {
+            console.error(`[HomePage] Error finding next/previous post:`, error);
+            // Fallback: redirect to search page
+            const searchUrl = `/search?tags=${encodeURIComponent(currentSearchTags)}&post=${selectedPost.id}&expand=true`;
+            window.location.href = searchUrl;
+          }
         }}
       />
       </div>
     </AuthWrapper>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomePageContent />
+    </Suspense>
   )
 }

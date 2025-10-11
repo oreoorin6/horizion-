@@ -17,27 +17,8 @@ export interface TagSection {
 }
 
 const defaultSections: TagSection[] = [
-  {
-    id: 'popular',
-    title: 'Popular Today',
-    tags: ['order:score'],
-    enabled: true,
-    color: 'blue'
-  },
-  {
-    id: 'recent',
-    title: 'Recent Posts',
-    tags: ['order:id'],
-    enabled: true,
-    color: 'green'
-  },
-  {
-    id: 'favorites',
-    title: 'Highly Favorited',
-    tags: ['order:favcount'],
-    enabled: true,
-    color: 'purple'
-  }
+  // Start with empty sections so users can customize from scratch
+  // They'll be guided to add their own through the UI
 ]
 
 const defaultSettings: HomeSettings = {
@@ -70,53 +51,65 @@ export function useHomeSettings() {
   }, [])
 
   const updateSettings = useCallback((newSettings: Partial<HomeSettings>) => {
-    const updated = { ...settings, ...newSettings }
-    setSettings(updated)
-    saveHomeSettings(updated)
-  }, [settings])
+    setSettings(currentSettings => {
+      const updated = { ...currentSettings, ...newSettings }
+      saveHomeSettings(updated)
+      return updated
+    })
+  }, [])
 
   const addTagSection = useCallback((section: Omit<TagSection, 'id'>) => {
-    const newSection: TagSection = {
-      ...section,
-      id: Date.now().toString()
-    }
-    const updated = {
-      ...settings,
-      tagSections: [...settings.tagSections, newSection]
-    }
-    setSettings(updated)
-    saveHomeSettings(updated)
-  }, [settings])
+    setSettings(currentSettings => {
+      const newSection: TagSection = {
+        ...section,
+        id: Date.now().toString()
+      }
+      const updated = {
+        ...currentSettings,
+        tagSections: [...currentSettings.tagSections, newSection]
+      }
+      console.log(`[useHomeSettings] Adding new tag section "${newSection.title}" with ${newSection.tags.length} tags`)
+      console.log(`[useHomeSettings] Total sections now: ${updated.tagSections.length}`)
+      saveHomeSettings(updated)
+      return updated
+    })
+  }, [])
 
   const updateTagSection = useCallback((id: string, updates: Partial<TagSection>) => {
-    const updated = {
-      ...settings,
-      tagSections: settings.tagSections.map(section =>
-        section.id === id ? { ...section, ...updates } : section
-      )
-    }
-    setSettings(updated)
-    saveHomeSettings(updated)
-  }, [settings])
+    setSettings(currentSettings => {
+      const updated = {
+        ...currentSettings,
+        tagSections: currentSettings.tagSections.map(section =>
+          section.id === id ? { ...section, ...updates } : section
+        )
+      }
+      saveHomeSettings(updated)
+      return updated
+    })
+  }, [])
 
   const removeTagSection = useCallback((id: string) => {
-    const updated = {
-      ...settings,
-      tagSections: settings.tagSections.filter(section => section.id !== id)
-    }
-    setSettings(updated)
-    saveHomeSettings(updated)
-  }, [settings])
+    setSettings(currentSettings => {
+      const updated = {
+        ...currentSettings,
+        tagSections: currentSettings.tagSections.filter(section => section.id !== id)
+      }
+      saveHomeSettings(updated)
+      return updated
+    })
+  }, [])
 
   const reorderTagSections = useCallback((fromIndex: number, toIndex: number) => {
-    const sections = [...settings.tagSections]
-    const [moved] = sections.splice(fromIndex, 1)
-    sections.splice(toIndex, 0, moved)
-    
-    const updated = { ...settings, tagSections: sections }
-    setSettings(updated)
-    saveHomeSettings(updated)
-  }, [settings])
+    setSettings(currentSettings => {
+      const sections = [...currentSettings.tagSections]
+      const [moved] = sections.splice(fromIndex, 1)
+      sections.splice(toIndex, 0, moved)
+      
+      const updated = { ...currentSettings, tagSections: sections }
+      saveHomeSettings(updated)
+      return updated
+    })
+  }, [])
 
   return {
     settings,

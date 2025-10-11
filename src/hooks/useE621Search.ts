@@ -5,6 +5,7 @@ import { useApi } from './useApi';
 import { e621api } from '@/lib/api/e621';
 import { E621Post, SearchParams } from '@/lib/api/e621/types';
 import { IApiClient, IE621ApiClient } from '@/lib/api/IApiClient';
+import { useBlacklist } from './useBlacklist';
 
 // State types
 export interface E621SearchState {
@@ -190,6 +191,7 @@ function e621SearchReducer(state: E621SearchState, action: E621SearchAction): E6
 // Hook
 export function useE621Search() {
   const [state, dispatch] = useReducer(e621SearchReducer, initialState)
+  const { getSearchModifiers } = useBlacklist()
   console.log('Getting e621api from useE621Search hook');
   
   // Import the E621ApiClient type for proper typing
@@ -243,8 +245,16 @@ export function useE621Search() {
       dispatch({ type: 'SEARCH_START', query });
 
       try {
+        // Get blacklist modifiers for "hide" mode
+        const blacklistModifiers = getSearchModifiers();
+        
+        // Combine user query with blacklist modifiers
+        const finalQuery = blacklistModifiers.length > 0 
+          ? `${query} ${blacklistModifiers.join(' ')}`
+          : query;
+        
         const searchParams: SearchParams = {
-          tags: query,
+          tags: finalQuery,
           limit: state.settings.postsPerPage,
           page,
           rating: state.settings.defaultRatings,
@@ -252,6 +262,7 @@ export function useE621Search() {
         };
 
         console.log('Search parameters:', JSON.stringify(searchParams));
+        console.log('Applied blacklist modifiers:', blacklistModifiers);
         
         const result = await e621api.searchPosts(searchParams);
         

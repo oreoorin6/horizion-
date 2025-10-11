@@ -10,6 +10,7 @@ export interface IE621ApiClient extends IApiClient {
   searchPosts(params: any): Promise<any>;
   searchTags(query: string): Promise<any[]>;
   getPost(id: number): Promise<any>;
+  getAdjacentPost(id: number, direction: 'next' | 'prev'): Promise<any>;
   getPool(id: number): Promise<any>;
 }
 

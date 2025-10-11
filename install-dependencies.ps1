@@ -189,8 +189,8 @@ try {
     $allSuccess = $true
     foreach ($dep in $criticalDependencies) {
         try {
-            npm list $dep --depth=0 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            $result = npm list $dep --depth=0 2>$null
+            if ($LASTEXITCODE -eq 0 -and $result) {
                 Write-ColorOutput "✓ $dep installed" "Success"
             } else {
                 Write-ColorOutput "✗ $dep NOT properly installed" "Error"

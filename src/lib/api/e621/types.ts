@@ -175,3 +175,29 @@ export interface SearchParams {
   include_deleted?: boolean
   include_flagged?: boolean
 }
+
+// Comment types
+export interface E621Comment {
+  id: number
+  created_at: string
+  updated_at: string
+  post_id: number
+  creator_id: number
+  creator_name: string
+  body: string
+  score: number
+  is_hidden: boolean
+  is_sticky: boolean
+  warning_type: string | null
+  warning_user_id: number | null
+}
+
+export interface CommentSearchParams {
+  post_id?: number
+  creator_id?: number
+  creator_name?: string
+  body_matches?: string
+  limit?: number // Max 320
+  page?: number
+  order?: string // 'id', 'score', 'created_at', 'updated_at'
+}

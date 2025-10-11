@@ -144,11 +144,11 @@ function searchReducer(state: SearchState, action: SearchAction): SearchState {
         }
       }
       
-      // Use provided totalPages from API if available, or calculate from posts
-      const newTotalPages = action.totalPages || (updatedPosts.length > 0 ? 
-        Math.max(Math.ceil(updatedPosts.length / state.settings.postsPerPage), action.page) : 0);
+      // Use totalPages from API response (which already accounts for e621's pagination)
+      // Don't recalculate based on postsPerPage - the API knows how many pages exist
+      const newTotalPages = action.totalPages !== undefined ? action.totalPages : 1;
       
-      console.log(`[SearchReducer] Updating state: ${updatedPosts.length} posts, page ${action.page}, totalPages ${newTotalPages}`);
+      console.log(`[SearchReducer] Updating state: ${updatedPosts.length} posts, page ${action.page}, totalPages ${newTotalPages} (from API: ${action.totalPages})`);
       
       return {
         ...state,

@@ -1,0 +1,3 @@
+# This is a placeholder for the app icon
+# In a real project, you would place icon.png and icon.ico files here
+# For now, Electron will use the default icon

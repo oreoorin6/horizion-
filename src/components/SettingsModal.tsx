@@ -8,6 +8,7 @@ import { useE621Search } from '@/hooks/useE621Search'
 import { useDownloadManager } from '../lib/download-manager'
 import { useDeveloperSettings } from '@/hooks/useDeveloperSettings'
 import { useUIScale } from '@/hooks/useUIScale'
+import { useCustomCSS } from '@/hooks/useCustomCSS'
 import ColorPicker from '@/components/ui/color-picker'
 import { BlacklistSettings } from '@/components/BlacklistSettings'
 
@@ -23,8 +24,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { state: downloadState, updateSettings: updateDownloadSettings, toggleSelectionMode, toggleDownloadPanel } = useDownloadManager()
   const { settings: devSettings, updateSettings: updateDevSettings, resetSettings: resetDevSettings } = useDeveloperSettings()
   const { settings: uiScaleSettings, updateScale, resetScale } = useUIScale()
+  const { settings: customCSSSettings, error: cssError, updateCSS, toggleEnabled: toggleCustomCSS, resetCSS, applyAndValidate } = useCustomCSS()
   
-  const [activeTab, setActiveTab] = useState<'account' | 'preferences' | 'downloads' | 'blacklist' | 'apis' | 'developer'>('account')
+  const [activeTab, setActiveTab] = useState<'account' | 'preferences' | 'downloads' | 'blacklist' | 'apis' | 'developer' | 'customcss'>('account')
   
   // Color palette state
   const [primaryColor, setPrimaryColor] = useState('#3b82f6') // Blue
@@ -227,6 +229,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               { id: 'downloads', label: 'Downloads', icon: Download },
               { id: 'blacklist', label: 'Blacklist', icon: Shield },
               { id: 'apis', label: 'APIs', icon: Globe },
+              { id: 'customcss', label: 'Custom CSS', icon: Code },
               { id: 'developer', label: 'Developer', icon: Code }
             ].map(({ id, label, icon: Icon }) => (
               <button
@@ -884,6 +887,159 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     <strong>Note:</strong> These API integrations are optional and only needed if you want to browse content from these sources. 
                     All credentials are stored locally in your browser and are only sent to their respective services for authentication.
                   </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'customcss' && (
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-lg font-semibold mb-4 text-foreground">Custom CSS</h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Add your own CSS styles to customize the appearance of the application. Changes apply in real-time.
+                </p>
+                
+                <div className="space-y-6">
+                  {/* Enable/Disable Toggle */}
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-card/30">
+                    <div>
+                      <h4 className="text-base font-semibold">Enable Custom CSS</h4>
+                      <p className="text-xs text-muted-foreground">Toggle custom CSS on or off</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={customCSSSettings.enabled}
+                        onChange={toggleCustomCSS}
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/25 dark:peer-focus:ring-primary/25 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+
+                  {/* CSS Editor */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-sm font-medium">CSS Code</label>
+                      <div className="flex items-center space-x-2">
+                        {cssError && (
+                          <span className="text-xs text-destructive flex items-center space-x-1">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>{cssError}</span>
+                          </span>
+                        )}
+                        <button
+                          onClick={resetCSS}
+                          className="text-xs text-muted-foreground hover:text-foreground font-medium"
+                        >
+                          Reset to Default
+                        </button>
+                      </div>
+                    </div>
+                    <textarea
+                      value={customCSSSettings.css}
+                      onChange={(e) => updateCSS(e.target.value)}
+                      className="w-full h-96 rounded-xl border border-input bg-background/50 px-4 py-3 text-sm font-mono shadow-sm transition-all duration-200 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary hover:border-primary/50 resize-none"
+                      placeholder="/* Enter your custom CSS here */"
+                      spellCheck={false}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Changes apply automatically when custom CSS is enabled. Use standard CSS syntax.
+                    </p>
+                  </div>
+
+                  {/* Quick Apply Button */}
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => applyAndValidate(customCSSSettings.css)}
+                      className="inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 hover:shadow-xl h-10 px-6 py-2"
+                    >
+                      <Code className="h-4 w-4 mr-2" />
+                      Apply & Validate CSS
+                    </button>
+                  </div>
+
+                  {/* Examples Section */}
+                  <div className="p-4 rounded-xl border border-border/50 bg-muted/30">
+                    <h4 className="text-sm font-semibold mb-3">Example Customizations</h4>
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      <details className="cursor-pointer">
+                        <summary className="font-medium hover:text-foreground">Custom Scrollbar</summary>
+                        <pre className="mt-2 p-3 rounded-lg bg-background/80 overflow-x-auto">
+{`::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}`}
+                        </pre>
+                      </details>
+                      
+                      <details className="cursor-pointer">
+                        <summary className="font-medium hover:text-foreground">Enhanced Hover Effects</summary>
+                        <pre className="mt-2 p-3 rounded-lg bg-background/80 overflow-x-auto">
+{`.post-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s ease;
+}`}
+                        </pre>
+                      </details>
+                      
+                      <details className="cursor-pointer">
+                        <summary className="font-medium hover:text-foreground">Custom Background Pattern</summary>
+                        <pre className="mt-2 p-3 rounded-lg bg-background/80 overflow-x-auto">
+{`body {
+  background-image: 
+    linear-gradient(45deg, #1a1a1a 25%, transparent 25%),
+    linear-gradient(-45deg, #1a1a1a 25%, transparent 25%);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+}`}
+                        </pre>
+                      </details>
+                      
+                      <details className="cursor-pointer">
+                        <summary className="font-medium hover:text-foreground">Glassmorphism Effect</summary>
+                        <pre className="mt-2 p-3 rounded-lg bg-background/80 overflow-x-auto">
+{`.modal-content {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}`}
+                        </pre>
+                      </details>
+                    </div>
+                  </div>
+
+                  {/* Warning */}
+                  <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                    <div className="flex items-start space-x-3">
+                      <svg className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-semibold text-yellow-500">Advanced Feature</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Custom CSS can override application styles. Invalid CSS may cause display issues. 
+                          Use the "Reset to Default" button to restore if you encounter problems.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

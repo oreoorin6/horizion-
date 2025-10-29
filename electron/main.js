@@ -62,9 +62,10 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
     
-    // Focus the window
-    // Temporarily enable dev tools in production to debug
-    mainWindow.webContents.openDevTools()
+    // Open DevTools only in development (toggle with F12 via menu)
+    if (isDev) {
+      try { mainWindow.webContents.openDevTools({ mode: 'detach' }) } catch {}
+    }
   })
 
   // Handle window closed

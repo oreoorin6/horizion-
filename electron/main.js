@@ -1,6 +1,21 @@
-const { app, BrowserWindow, Menu } = require('electron')
+const { app, BrowserWindow, Menu, protocol } = require('electron')
+const { pathToFileURL } = require('url')
 const isDev = require('electron-is-dev')
 const path = require('path')
+
+// Register custom scheme privileges BEFORE app is ready so DOM storage works (non-opaque origin)
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true
+    }
+  }
+])
 
 let mainWindow
 
@@ -13,30 +28,43 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false,
+      webSecurity: false, // Disable CORS for API calls
       allowRunningInsecureContent: true
     },
     icon: path.join(__dirname, '../assets/icon.png'),
     show: false,
     titleBarStyle: 'default',
-    frame: true
+    frame: true,
+    backgroundColor: '#1a1a1a' // Prevent white flash on load
   })
 
-  // Load the app
-  const startUrl = isDev 
-    ? 'http://localhost:3000' 
-    : `file://${path.join(__dirname, '../out/index.html')}`
+  // Set a custom user agent required by e621 API for all renderer requests
+  try {
+    const APP_USER_AGENT = 'E621Horizon/1.0 (https://github.com/yourusername/e621horizon)'
+    mainWindow.webContents.setUserAgent(APP_USER_AGENT)
+  } catch (e) {
+    console.warn('[Electron] Failed to set custom user agent:', e)
+  }
 
-  mainWindow.loadURL(startUrl)
+  // Load the app
+  let startUrl;
+  if (isDev) {
+    startUrl = 'http://localhost:3000'
+    mainWindow.loadURL(startUrl)
+  } else {
+    // In production, serve static files from out/ via a custom protocol to avoid file:// issues
+    const startAppUrl = 'app://local/index.html'
+    console.log('[Electron] Loading URL:', startAppUrl)
+    mainWindow.loadURL(startAppUrl)
+  }
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
     
     // Focus the window
-    if (isDev) {
-      mainWindow.webContents.openDevTools()
-    }
+    // Temporarily enable dev tools in production to debug
+    mainWindow.webContents.openDevTools()
   })
 
   // Handle window closed
@@ -86,6 +114,31 @@ function createWindow() {
 
 // App event handlers
 app.whenReady().then(() => {
+  // Register a custom protocol to serve files from the packaged out/ directory
+  protocol.registerFileProtocol('app', (request, callback) => {
+    try {
+      const reqUrl = new URL(request.url)
+      let pathname = decodeURI(reqUrl.pathname)
+      if (!pathname || pathname === '/') {
+        pathname = '/index.html'
+      } else {
+        // If no file extension, serve index.html in that folder (for app router routes)
+        const hasExt = path.extname(pathname) !== ''
+        if (!hasExt) pathname = path.join(pathname, 'index.html')
+      }
+
+      // Map to app.asar/out/<pathname>
+      const basePath = app.getAppPath()
+      const resolvedPath = path.join(basePath, 'out', pathname)
+      // Debug logging for difficult cases
+      // console.log('[Protocol] app:// ->', resolvedPath)
+      callback({ path: resolvedPath })
+    } catch (err) {
+      console.error('[Protocol] Failed to resolve path for', request.url, err)
+      callback({ error: -6 }) // net::ERR_FILE_NOT_FOUND
+    }
+  })
+
   createWindow()
 
   app.on('activate', () => {

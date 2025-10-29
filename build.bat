@@ -43,6 +43,38 @@ echo ========================================
 echo      Starting Production Build...
 echo ========================================
 echo.
+echo Step 0: Cleaning up old build files...
+if exist "dist" (
+    echo   Removing old dist folder...
+    rmdir /s /q "dist" 2>nul
+    if exist "dist" (
+        echo   Warning: Could not remove dist folder completely
+        echo   Attempting to continue anyway...
+    ) else (
+        echo   [OK] Old dist folder removed
+    )
+)
+if exist ".next" (
+    echo   Removing old .next folder...
+    rmdir /s /q ".next" 2>nul
+    if exist ".next" (
+        echo   Warning: Could not remove .next folder completely
+        echo   Attempting to continue anyway...
+    ) else (
+        echo   [OK] Old .next folder removed
+    )
+)
+if exist "out" (
+    echo   Removing old out folder...
+    rmdir /s /q "out" 2>nul
+    if exist "out" (
+        echo   Warning: Could not remove out folder completely
+        echo   Attempting to continue anyway...
+    ) else (
+        echo   [OK] Old out folder removed
+    )
+)
+echo.
 echo Step 1: Installing/updating dependencies...
 call npm install
 if errorlevel 1 (
@@ -61,7 +93,7 @@ if errorlevel 1 (
 echo.
 echo Step 3: Building Electron application (unpacked)...
 set CSC_IDENTITY_AUTO_DISCOVERY=false
-call npx electron-builder --win dir
+call npx electron-builder --config electron-builder.yml
 if errorlevel 1 (
     echo WARNING: Electron builder had issues, but unpacked version may be available
     echo Check the dist/win-unpacked folder

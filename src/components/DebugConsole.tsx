@@ -65,14 +65,29 @@ export const DebugConsole: React.FC<DebugConsoleProps> = ({
       warn: console.warn
     };
 
+    // Helper to stringify args safely
+    const toMessage = (args: any[]) => args.map(arg => 
+      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+    ).join(' ')
+
+    // Patterns of benign Next.js navigation/RSC noises we want to downgrade
+    const shouldDowngrade = (msg: string) => {
+      const lower = msg.toLowerCase()
+      return (
+        // Next.js RSC prefetch failing during static export - harmless, it falls back to navigation
+        lower.includes('failed to fetch rsc payload') ||
+        lower.includes('falling back to browser navigation') ||
+        // Missing .txt RSC resources under custom protocol (app://) - also harmless
+        (lower.includes('app://') && lower.includes('.txt') && lower.includes('err_file_not_found'))
+      )
+    }
+
     console.log = (...args) => {
       originalConsole.current!.log(...args);
       if (settings.showDebugLogs) {
         // Use setTimeout to defer state update and avoid render-time updates
         setTimeout(() => {
-          const message = args.map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-          ).join(' ');
+          const message = toMessage(args)
           
           // Detect API-related logs
           const isApiLog = message.includes('[E621API]') || 
@@ -90,14 +105,18 @@ export const DebugConsole: React.FC<DebugConsoleProps> = ({
     };
     
     console.error = (...args) => {
-      originalConsole.current!.error(...args);
-      if (settings.showErrorLogs) {
-        setTimeout(() => {
-          const message = args.map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-          ).join(' ');
-          addLogEntry(message, 'error');
-        }, 0);
+      const message = toMessage(args)
+      if (shouldDowngrade(message)) {
+        // Downgrade to warning to avoid scary console errors
+        originalConsole.current!.warn(...args)
+        if (settings.showWarningLogs) {
+          setTimeout(() => addLogEntry(message, 'warning'), 0)
+        }
+      } else {
+        originalConsole.current!.error(...args)
+        if (settings.showErrorLogs) {
+          setTimeout(() => addLogEntry(message, 'error'), 0)
+        }
       }
     };
     
@@ -105,13 +124,39 @@ export const DebugConsole: React.FC<DebugConsoleProps> = ({
       originalConsole.current!.warn(...args);
       if (settings.showWarningLogs) {
         setTimeout(() => {
-          const message = args.map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-          ).join(' ');
+          const message = toMessage(args)
           addLogEntry(message, 'warning');
         }, 0);
       }
     };
+
+    // Suppress window-level error noise for benign navigation/RSC fetches
+    const onWindowError = (e: ErrorEvent) => {
+      try {
+        const msg = String((e && (e.message || e.error || '')) || '')
+        if (msg && shouldDowngrade(msg)) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          originalConsole.current!.warn('[Suppressed error]', msg)
+        }
+      } catch {}
+    }
+    const onUnhandledRejection = (e: PromiseRejectionEvent) => {
+      try {
+        const reason: any = (e && (e.reason || {}))
+        const msg = typeof reason === 'string' ? reason : (reason?.message || '')
+        if (msg && shouldDowngrade(String(msg))) {
+          e.preventDefault()
+          e.stopImmediatePropagation()
+          originalConsole.current!.warn('[Suppressed rejection]', msg)
+        }
+      } catch {}
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('error', onWindowError, true)
+      window.addEventListener('unhandledrejection', onUnhandledRejection, true)
+    }
 
     setIsCapturing(true);
     setIsExpanded(true);
@@ -123,6 +168,11 @@ export const DebugConsole: React.FC<DebugConsoleProps> = ({
     console.log = originalConsole.current.log;
     console.error = originalConsole.current.error;
     console.warn = originalConsole.current.warn;
+    if (typeof window !== 'undefined') {
+      // Best-effort removal: we don't have references here, but capturing true ensures ours ran first
+      window.removeEventListener('error', () => {}, true)
+      window.removeEventListener('unhandledrejection', () => {}, true)
+    }
     
     setIsCapturing(false);
   };

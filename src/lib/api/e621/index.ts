@@ -10,10 +10,31 @@ const APP_NAME = 'E621Horizon';
 const APP_VERSION = '1.0';
 const CONTACT = 'https://github.com/yourusername/e621horizon'; // Update this with your actual contact info
 
-// Use our API proxy in the browser, direct API access in Node.js
-const API_BASE = typeof window !== 'undefined' 
+// Detect if running in Electron (renderer) safely without nodeIntegration
+const isElectron = typeof window !== 'undefined' && (
+  // Packaged app uses our custom app:// scheme
+  ((window.location && ((window.location as any).protocol?.startsWith('app') || (window.location as any).origin?.startsWith('app://'))) ||
+  // Dev builds include 'Electron' in UA
+  (typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent || '')))
+);
+
+// Debug log to confirm environment detection at runtime
+try {
+  if (typeof window !== 'undefined') {
+    console.log('[E621API] Env detection:', {
+      href: window.location.href,
+      origin: (window.location as any).origin,
+      protocol: (window.location as any).protocol,
+      ua: typeof navigator !== 'undefined' ? navigator.userAgent : 'n/a',
+      isElectron
+    })
+  }
+} catch {}
+
+// Use direct API in Electron (CORS disabled), proxy in regular browser
+const API_BASE = typeof window !== 'undefined' && !isElectron
   ? '/api/proxy' // Proxy endpoint for browser use to avoid CORS issues
-  : 'https://e621.net'; // Direct API access for server-side rendering
+  : 'https://e621.net'; // Direct API access for Electron and SSR
 
 const DIRECT_API_BASE = 'https://e621.net'; // Always the direct URL for testing
 
@@ -199,8 +220,10 @@ export class E621ApiClient extends ApiClient implements IE621ApiClient {
    * Override makeRequest to handle proxy vs direct API calls properly
    */
   protected async makeRequest<T>(endpoint: string, params?: Record<string, any>, method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET', body?: any): Promise<T> {
-    // In browser, use our custom proxy logic instead of the base class
-    if (typeof window !== 'undefined') {
+    const inBrowser = typeof window !== 'undefined'
+    const useProxy = inBrowser && !isElectron
+    // In regular browser, use our custom proxy logic; in Electron, use direct base
+    if (useProxy) {
       // Use proxy approach for browser requests
       const proxyUrl = new URL('/api/proxy', window.location.origin);
       proxyUrl.searchParams.set('endpoint', endpoint.startsWith('/') ? endpoint.slice(1) : endpoint);
@@ -239,7 +262,7 @@ export class E621ApiClient extends ApiClient implements IE621ApiClient {
       
       return response.json();
     } else {
-      // For server-side, use the base class method with direct URL
+      // For Electron renderer and server-side, use the base class with direct URL
       return super.makeRequest(endpoint, params, method, body);
     }
   }
@@ -392,7 +415,7 @@ export class E621ApiClient extends ApiClient implements IE621ApiClient {
       }
       
       // In the browser, use our API proxy to avoid CORS issues
-      if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && !isElectron) {
         console.log('[E621API] Using proxy for browser request');
         
         // For the proxy, we need to transform the params to query parameters
@@ -732,8 +755,8 @@ export class E621ApiClient extends ApiClient implements IE621ApiClient {
       
       let requestPromise;
       
-      // In browser environment, use our proxy
-      if (typeof window !== 'undefined') {
+  // In browser environment, use our proxy; in Electron, use direct
+  if (typeof window !== 'undefined' && !isElectron) {
         const proxyUrl = new URL('/api/proxy', window.location.origin);
         proxyUrl.searchParams.set('endpoint', 'comments.json');
         
@@ -839,9 +862,9 @@ export class E621ApiClient extends ApiClient implements IE621ApiClient {
       
       console.log('[E621API] Making new tag search request for:', query);
       
-      // In browser environment, use our proxy
-      let requestPromise;
-      if (typeof window !== 'undefined') {
+  // In browser environment, use our proxy; in Electron, use direct
+  let requestPromise;
+  if (typeof window !== 'undefined' && !isElectron) {
         const proxyUrl = new URL('/api/proxy', window.location.origin);
         proxyUrl.searchParams.set('endpoint', 'tags.json');
         

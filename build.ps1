@@ -1,4 +1,4 @@
-# E621 Horizon Build Script
+﻿# E621 Horizon Build Script
 # PowerShell version with better error handling
 
 Write-Host ""
@@ -59,6 +59,49 @@ do {
             Write-Host ""
             
             try {
+                # Step 0: Clean up old build files
+                Write-Host "Step 0: Cleaning up old build files..." -ForegroundColor Cyan
+                
+                # Remove dist folder if it exists
+                if (Test-Path "dist") {
+                    Write-Host "  Removing old dist folder..." -ForegroundColor Yellow
+                    try {
+                        Remove-Item -Path "dist" -Recurse -Force -ErrorAction Stop
+                        Write-Host "  ✓ Old dist folder removed" -ForegroundColor Green
+                    }
+                    catch {
+                        Write-Host "  ⚠ Warning: Could not remove dist folder completely: $_" -ForegroundColor Yellow
+                        Write-Host "  Attempting to continue anyway..." -ForegroundColor Yellow
+                    }
+                }
+                
+                # Remove .next folder if it exists
+                if (Test-Path ".next") {
+                    Write-Host "  Removing old .next folder..." -ForegroundColor Yellow
+                    try {
+                        Remove-Item -Path ".next" -Recurse -Force -ErrorAction Stop
+                        Write-Host "  ✓ Old .next folder removed" -ForegroundColor Green
+                    }
+                    catch {
+                        Write-Host "  ⚠ Warning: Could not remove .next folder completely: $_" -ForegroundColor Yellow
+                        Write-Host "  Attempting to continue anyway..." -ForegroundColor Yellow
+                    }
+                }
+                
+                # Remove out folder if it exists
+                if (Test-Path "out") {
+                    Write-Host "  Removing old out folder..." -ForegroundColor Yellow
+                    try {
+                        Remove-Item -Path "out" -Recurse -Force -ErrorAction Stop
+                        Write-Host "  ✓ Old out folder removed" -ForegroundColor Green
+                    }
+                    catch {
+                        Write-Host "  ⚠ Warning: Could not remove out folder completely: $_" -ForegroundColor Yellow
+                        Write-Host "  Attempting to continue anyway..." -ForegroundColor Yellow
+                    }
+                }
+                
+                Write-Host ""
                 Write-Host "Step 1: Installing/updating dependencies..." -ForegroundColor Cyan
                 npm install
                 if ($LASTEXITCODE -ne 0) {
@@ -73,7 +116,7 @@ do {
                 
                 Write-Host "Step 3: Building Electron application..." -ForegroundColor Cyan
                 $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
-                npx electron-builder --win dir
+                npx electron-builder --config electron-builder.yml
                 
                 Write-Host ""
                 Write-Host "Production build complete!" -ForegroundColor Green

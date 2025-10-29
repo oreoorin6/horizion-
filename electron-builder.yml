@@ -1,0 +1,13 @@
+﻿appId: com.e621horizon.app
+productName: E621 Horizon
+directories:
+  output: dist
+files:
+  - out/**/*
+  - electron/**/*
+  - node_modules/**/*
+  - package.json
+win:
+  target: dir
+extraMetadata:
+  main: electron/main.js

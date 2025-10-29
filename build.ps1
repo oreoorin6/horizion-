@@ -61,17 +61,32 @@ do {
             try {
                 # Step 0: Clean up old build files
                 Write-Host "Step 0: Cleaning up old build files..." -ForegroundColor Cyan
+
+                # Ensure no running processes are locking dist (Electron/EXE)
+                Write-Host "  Stopping running app processes (if any)..." -ForegroundColor Yellow
+                try {
+                    Get-Process | Where-Object { $_.ProcessName -like "E621*" -or $_.ProcessName -like "electron*" } | ForEach-Object {
+                        try { Stop-Process -Id $_.Id -Force -ErrorAction Stop } catch {}
+                    }
+                    Start-Sleep -Seconds 1
+                } catch {}
                 
-                # Remove dist folder if it exists
+                # Remove dist folder if it exists (retry a couple times in case Defender locks files)
                 if (Test-Path "dist") {
                     Write-Host "  Removing old dist folder..." -ForegroundColor Yellow
-                    try {
-                        Remove-Item -Path "dist" -Recurse -Force -ErrorAction Stop
-                        Write-Host "  ✓ Old dist folder removed" -ForegroundColor Green
+                    $removed = $false
+                    for ($i=0; $i -lt 3 -and -not $removed; $i++) {
+                        try {
+                            Remove-Item -Path "dist" -Recurse -Force -ErrorAction Stop
+                            $removed = $true
+                            Write-Host "  ✓ Old dist folder removed" -ForegroundColor Green
+                        } catch {
+                            Write-Host "  ⚠ Dist removal attempt $($i+1) failed, retrying..." -ForegroundColor Yellow
+                            Start-Sleep -Seconds 1
+                        }
                     }
-                    catch {
-                        Write-Host "  ⚠ Warning: Could not remove dist folder completely: $_" -ForegroundColor Yellow
-                        Write-Host "  Attempting to continue anyway..." -ForegroundColor Yellow
+                    if (-not $removed) {
+                        Write-Host "  ⚠ Warning: Could not remove dist folder completely. Continuing..." -ForegroundColor Yellow
                     }
                 }
                 

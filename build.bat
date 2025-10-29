@@ -44,12 +44,22 @@ echo      Starting Production Build...
 echo ========================================
 echo.
 echo Step 0: Cleaning up old build files...
+echo   Stopping running app processes (if any)...
+taskkill /F /IM "E621 Horizon.exe" >nul 2>&1
+taskkill /F /IM electron.exe >nul 2>&1
+timeout /t 1 /nobreak > nul
 if exist "dist" (
     echo   Removing old dist folder...
     rmdir /s /q "dist" 2>nul
     if exist "dist" (
-        echo   Warning: Could not remove dist folder completely
-        echo   Attempting to continue anyway...
+        echo   Warning: Could not remove dist folder completely, retrying...
+        timeout /t 1 /nobreak > nul
+        rmdir /s /q "dist" 2>nul
+        if exist "dist" (
+            echo   Warning: Still could not remove dist. Continuing...
+        ) else (
+            echo   [OK] Old dist folder removed
+        )
     ) else (
         echo   [OK] Old dist folder removed
     )

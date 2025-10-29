@@ -9,6 +9,7 @@ yarn-error.log*
 /out/
 /dist/
 /dist2/
+electron-build.log
 
 # Production
 /build

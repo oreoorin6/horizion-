@@ -8,6 +8,10 @@ files:
   - node_modules/**/*
   - package.json
 win:
-  target: dir
+  target:
+    - target: dir
+    - target: portable
+portable:
+  artifactName: E621-Horizon-${version}-portable.exe
 extraMetadata:
   main: electron/main.js

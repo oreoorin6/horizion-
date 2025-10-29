@@ -12,7 +12,9 @@
     "electron": "electron .",
     "electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
     "build-electron": "npm run build && electron-builder",
-    "dist": "npm run build && electron-builder --publish=never"
+    "dist": "npm run build && electron-builder --publish=never",
+    "deps:report": "npm outdated || exit 0",
+    "deps:restore": "powershell -ExecutionPolicy Bypass -File ./scripts/restore-deps.ps1"
   },
   "main": "electron/main.js",
   "homepage": "./",

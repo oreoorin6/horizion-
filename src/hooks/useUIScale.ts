@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 
 export interface UIScaleSettings {
-  scale: number; // 10-300 (percentage)
+  scale: number; // 70-300 (percentage)
 }
 
 const defaultSettings: UIScaleSettings = {
@@ -57,8 +57,8 @@ export function useUIScale() {
   }, [])
 
   const updateScale = useCallback((scale: number) => {
-    // Clamp scale between 10 and 300
-    const clampedScale = Math.max(10, Math.min(300, scale))
+    // Clamp scale between 70 and 300
+    const clampedScale = Math.max(70, Math.min(300, scale))
     const newSettings = { scale: clampedScale }
     
     setSettings(newSettings)

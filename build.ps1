@@ -116,11 +116,31 @@ do {
                     }
                 }
                 
-                Write-Host ""
+                Write-Host "" 
                 Write-Host "Step 1: Installing/updating dependencies..." -ForegroundColor Cyan
                 npm install
                 if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to install dependencies"
+                    Write-Host "  ⚠ npm install failed. Attempting dependency repair..." -ForegroundColor Yellow
+                    try {
+                        Write-Host "    - Cleaning npm cache" -ForegroundColor Yellow
+                        npm cache clean --force | Out-Null
+                    } catch {}
+                    try {
+                        Write-Host "    - Removing node_modules and package-lock.json" -ForegroundColor Yellow
+                        if (Test-Path "node_modules") { Remove-Item -Recurse -Force "node_modules" -ErrorAction SilentlyContinue }
+                        if (Test-Path "package-lock.json") { Remove-Item -Force "package-lock.json" -ErrorAction SilentlyContinue }
+                    } catch {}
+                    Write-Host "    - Re-installing dependencies (npm ci fallback to npm install)" -ForegroundColor Yellow
+                    if (Test-Path "package-lock.json") {
+                        npm ci
+                    } else {
+                        npm install
+                    }
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "Failed to install dependencies after repair attempts"
+                    } else {
+                        Write-Host "  ✓ Dependencies repaired and installed" -ForegroundColor Green
+                    }
                 }
                 
                 Write-Host "Step 2: Building Next.js application..." -ForegroundColor Cyan
@@ -132,6 +152,32 @@ do {
                 Write-Host "Step 3: Building Electron application..." -ForegroundColor Cyan
                 $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
                 npx electron-builder --config electron-builder.yml
+                $builderExit = $LASTEXITCODE
+                if ($builderExit -ne 0) {
+                    Write-Host "  ⚠ electron-builder failed (exit $builderExit). Attempting to clear caches and retry..." -ForegroundColor Yellow
+                    # Common electron/electron-builder caches on Windows
+                    $cachePaths = @(
+                        Join-Path $env:LOCALAPPDATA "electron-builder\Cache",
+                        Join-Path $env:LOCALAPPDATA "electron\Cache",
+                        Join-Path $env:LOCALAPPDATA "electron-builder\nsis",
+                        Join-Path $env:LOCALAPPDATA "electron-builder\winCodeSign"
+                    )
+                    foreach ($p in $cachePaths) {
+                        try {
+                            if (Test-Path $p) {
+                                Write-Host "    - Removing cache: $p" -ForegroundColor Yellow
+                                Remove-Item -Recurse -Force $p -ErrorAction SilentlyContinue
+                            }
+                        } catch {}
+                    }
+                    Write-Host "    - Retrying electron-builder (fresh downloads)" -ForegroundColor Yellow
+                    npx electron-builder --config electron-builder.yml
+                    if ($LASTEXITCODE -ne 0) {
+                        throw "electron-builder failed after cache clear retry"
+                    } else {
+                        Write-Host "  ✓ electron-builder succeeded after retry" -ForegroundColor Green
+                    }
+                }
                 
                 Write-Host ""
                 Write-Host "Production build complete!" -ForegroundColor Green

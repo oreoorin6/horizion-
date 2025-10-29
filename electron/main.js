@@ -1,7 +1,9 @@
-const { app, BrowserWindow, Menu, protocol } = require('electron')
+const { app, BrowserWindow, Menu, protocol, ipcMain, dialog } = require('electron')
 const { pathToFileURL } = require('url')
 const isDev = require('electron-is-dev')
 const path = require('path')
+const fs = require('fs')
+const https = require('https')
 
 // Register custom scheme privileges BEFORE app is ready so DOM storage works (non-opaque origin)
 protocol.registerSchemesAsPrivileged([
@@ -29,7 +31,8 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false, // Disable CORS for API calls
-      allowRunningInsecureContent: true
+      allowRunningInsecureContent: true,
+      preload: path.join(__dirname, 'preload.js')
     },
     icon: path.join(__dirname, '../assets/icon.png'),
     show: false,
@@ -175,4 +178,155 @@ app.on('web-contents-created', (event, contents) => {
     const { shell } = require('electron')
     shell.openExternal(navigationUrl)
   })
+})
+
+// ---------------------------
+// Download manager (main-side)
+// ---------------------------
+
+// Keep track of active downloads to support cancellation
+const activeDownloads = new Map()
+
+function resolveDownloadDirectory(dir) {
+  // If dir is absolute, return as-is; else resolve under user Downloads
+  try {
+    if (path.isAbsolute(dir)) return dir
+  } catch {}
+  return path.join(app.getPath('downloads'), dir || 'downloads')
+}
+
+function ensureDirectoryExists(dirPath) {
+  try {
+    fs.mkdirSync(dirPath, { recursive: true })
+  } catch (e) {
+    // best effort
+  }
+}
+
+function uniquePath(filePath) {
+  if (!fs.existsSync(filePath)) return filePath
+  const dir = path.dirname(filePath)
+  const ext = path.extname(filePath)
+  const name = path.basename(filePath, ext)
+  let i = 1
+  let next
+  do {
+    next = path.join(dir, `${name} (${i})${ext}`)
+    i++
+  } while (fs.existsSync(next) && i < 1000)
+  return next
+}
+
+function followRedirects(urlString, headers, depth = 0) {
+  return new Promise((resolve, reject) => {
+    if (depth > 5) return reject(new Error('Too many redirects'))
+
+    const request = https.request(urlString, { method: 'GET', headers }, response => {
+      const status = response.statusCode || 0
+      if ([301, 302, 303, 307, 308].includes(status) && response.headers.location) {
+        response.resume()
+        const nextUrl = new URL(response.headers.location, urlString).toString()
+        resolve(followRedirects(nextUrl, headers, depth + 1))
+      } else if (status >= 200 && status < 300) {
+        resolve(response)
+      } else {
+        reject(new Error(`HTTP ${status}`))
+      }
+    })
+    request.on('error', reject)
+    request.end()
+  })
+}
+
+ipcMain.handle('download:start', async (event, payload) => {
+  const { id, url, directory, filename, headers: hdrs } = payload || {}
+  if (!id || !url || !filename) {
+    throw new Error('Missing required download params')
+  }
+
+  const UA = 'E621Horizon/1.0 (https://github.com/yourusername/e621horizon)'
+  const headers = Object.assign({
+    'User-Agent': UA,
+    'Referer': 'https://e621.net/'
+  }, hdrs || {})
+
+  const fullDir = resolveDownloadDirectory(directory)
+  ensureDirectoryExists(fullDir)
+  let fullPath = path.join(fullDir, filename)
+  fullPath = uniquePath(fullPath)
+
+  const startTime = Date.now()
+  try {
+    const response = await followRedirects(url, headers)
+    const totalBytes = parseInt(response.headers['content-length'] || '0', 10) || 0
+    const writeStream = fs.createWriteStream(fullPath)
+
+    let downloaded = 0
+    let lastEmit = Date.now()
+    let lastBytes = 0
+
+    // Allow cancellation
+    const abortController = new AbortController()
+    const cleanup = () => {
+      activeDownloads.delete(id)
+    }
+    activeDownloads.set(id, {
+      abort: () => {
+        try { response.destroy() } catch {}
+        try { writeStream.close() } catch {}
+        try { fs.unlinkSync(fullPath) } catch {}
+        cleanup()
+      }
+    })
+
+    response.on('data', chunk => {
+      writeStream.write(chunk)
+      downloaded += chunk.length
+
+      const now = Date.now()
+      if (now - lastEmit > 300) {
+        const deltaBytes = downloaded - lastBytes
+        const deltaTime = (now - lastEmit) / 1000
+        const speed = deltaBytes / 1024 / 1024 / (deltaTime || 1) // MB/s
+        event.sender.send('download:progress', { id, downloaded, total: totalBytes, speed })
+        lastEmit = now
+        lastBytes = downloaded
+      }
+    })
+
+    response.on('end', () => {
+      writeStream.end(() => {
+        cleanup()
+        event.sender.send('download:completed', { id, path: fullPath })
+      })
+    })
+
+    response.on('error', err => {
+      try { writeStream.close() } catch {}
+      cleanup()
+      event.sender.send('download:error', { id, message: err?.message || 'Download failed' })
+    })
+
+  } catch (err) {
+    event.sender.send('download:error', { id, message: err?.message || 'Download failed' })
+  }
+})
+
+ipcMain.handle('download:cancel', (event, id) => {
+  const d = activeDownloads.get(id)
+  if (d && typeof d.abort === 'function') {
+    d.abort()
+  }
+  event.sender.send('download:cancelled', { id })
+})
+
+// Open system folder picker dialog and return chosen path
+ipcMain.handle('dialog:chooseFolder', async () => {
+  const win = BrowserWindow.getFocusedWindow() || mainWindow
+  const result = await dialog.showOpenDialog(win, {
+    title: 'Select Download Folder',
+    properties: ['openDirectory', 'createDirectory']
+  })
+  if (result.canceled || !result.filePaths?.length) return null
+  return result.filePaths[0]
 })

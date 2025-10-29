@@ -279,6 +279,18 @@ function DownloadSettingsPanel() {
   const { settings } = state;
   const [localSettings, setLocalSettings] = useState(settings);
   
+  const chooseFolder = async () => {
+    try {
+      const api = (typeof window !== 'undefined' && (window as any).e621?.dialog) as any
+      const folder = await api?.chooseFolder?.()
+      if (folder) {
+        setLocalSettings(prev => ({ ...prev, location: folder }))
+      }
+    } catch (e) {
+      console.error('Folder selection failed', e)
+    }
+  }
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     
@@ -326,14 +338,18 @@ function DownloadSettingsPanel() {
         
         <div className="space-y-2">
           <label className="block text-sm font-medium">Download Location</label>
-          <input
-            type="text"
-            name="location"
-            value={localSettings.location}
-            onChange={handleChange}
-            className="w-full p-2 border border-accent rounded bg-background"
-            placeholder="downloads"
-          />
+          <div className="flex gap-2">
+            <input
+              type="text"
+              name="location"
+              value={localSettings.location}
+              onChange={handleChange}
+              className="flex-1 p-2 border border-accent rounded bg-background"
+              placeholder="downloads"
+            />
+            <Button variant="outline" size="sm" onClick={chooseFolder}>Browse…</Button>
+          </div>
+          <p className="text-xs text-muted-foreground">Absolute paths save directly; relative paths are placed under your system Downloads.</p>
         </div>
         
         <div className="space-y-2">

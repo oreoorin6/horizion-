@@ -9,10 +9,16 @@ const APP_NAME = 'E621Horizon';
 const APP_VERSION = '1.0';
 const CONTACT = 'https://github.com/yourusername/e621horizon';
 
-// Use our FA proxy in the browser, direct API access in Node.js
-const API_BASE = typeof window !== 'undefined' 
+// Detect if running in Electron
+const isElectron = typeof window !== 'undefined' && 
+  typeof (window as any).process !== 'undefined' && 
+  (window as any).process.versions && 
+  (window as any).process.versions.electron;
+
+// Use direct API in Electron (webSecurity is disabled), proxy in browser
+const API_BASE = typeof window !== 'undefined' && !isElectron
   ? '/api/proxy-fa' // Proxy endpoint for browser use to avoid CORS issues
-  : 'https://www.furaffinity.net'; // Direct API access for server-side rendering
+  : 'https://www.furaffinity.net'; // Direct API access for Electron and SSR
 
 const DIRECT_API_BASE = 'https://www.furaffinity.net'; // Always the direct URL
 

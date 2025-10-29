@@ -88,9 +88,25 @@ echo.
 echo Step 1: Installing/updating dependencies...
 call npm install
 if errorlevel 1 (
-    echo ERROR: Failed to install dependencies
-    pause
-    goto end
+    echo WARNING: npm install failed. Attempting dependency repair...
+    echo   - Cleaning npm cache
+    call npm cache clean --force >nul 2>&1
+    echo   - Removing node_modules and package-lock.json
+    if exist "node_modules" rmdir /s /q "node_modules"
+    if exist "package-lock.json" del /f /q "package-lock.json"
+    echo   - Re-installing dependencies (try npm ci then npm install)
+    if exist "package-lock.json" (
+        call npm ci
+    ) else (
+        call npm install
+    )
+    if errorlevel 1 (
+        echo ERROR: Failed to install dependencies after repair attempts
+        pause
+        goto end
+    ) else (
+        echo [OK] Dependencies repaired and installed
+    )
 )
 echo.
 echo Step 2: Building Next.js application...
@@ -105,8 +121,24 @@ echo Step 3: Building Electron application (unpacked)...
 set CSC_IDENTITY_AUTO_DISCOVERY=false
 call npx electron-builder --config electron-builder.yml
 if errorlevel 1 (
-    echo WARNING: Electron builder had issues, but unpacked version may be available
-    echo Check the dist/win-unpacked folder
+    echo WARNING: electron-builder failed. Clearing caches to force re-download and retrying...
+    set "EBC1=%LOCALAPPDATA%\electron-builder\Cache"
+    set "EBC2=%LOCALAPPDATA%\electron\Cache"
+    set "EBC3=%LOCALAPPDATA%\electron-builder\nsis"
+    set "EBC4=%LOCALAPPDATA%\electron-builder\winCodeSign"
+    if exist "%EBC1%" rmdir /s /q "%EBC1%"
+    if exist "%EBC2%" rmdir /s /q "%EBC2%"
+    if exist "%EBC3%" rmdir /s /q "%EBC3%"
+    if exist "%EBC4%" rmdir /s /q "%EBC4%"
+    echo   - Retrying electron-builder with fresh downloads...
+    call npx electron-builder --config electron-builder.yml
+    if errorlevel 1 (
+        echo ERROR: electron-builder failed after cache clear retry
+        pause
+        goto end
+    ) else (
+        echo [OK] electron-builder succeeded after retry
+    )
 )
 echo.
 echo Production build complete!

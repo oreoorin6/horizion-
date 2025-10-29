@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import ApiProvider from '@/context/ApiProvider';
 import { SearchProvider } from '@/context/SearchProvider'
+import { HomeSettingsProvider } from '@/context/HomeSettingsProvider'
 import { DownloadManagerProvider } from '../lib/download-manager'
 import ClientDownloadPanel from '../components/ClientDownloadPanel'
 import DebugConsole from '../components/DebugConsole'
@@ -24,12 +25,14 @@ export default function RootLayout({
       <body className={inter.className}>
         <ApiProvider>
           <SearchProvider>
-            <DownloadManagerProvider>
-              <div className="bg-overlay fixed inset-0 bg-background/80 backdrop-blur-sm" style={{ zIndex: -1 }} />
-              {children}
-              <ClientDownloadPanel />
-              <DebugConsole title="E621 Horizon Debug Console" />
-            </DownloadManagerProvider>
+            <HomeSettingsProvider>
+              <DownloadManagerProvider>
+                <div className="bg-overlay fixed inset-0 bg-background/80 backdrop-blur-sm" style={{ zIndex: -1 }} />
+                {children}
+                <ClientDownloadPanel />
+                <DebugConsole title="E621 Horizon Debug Console" />
+              </DownloadManagerProvider>
+            </HomeSettingsProvider>
           </SearchProvider>
         </ApiProvider>
       </body>

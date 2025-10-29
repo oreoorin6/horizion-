@@ -1,12 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable API routes by NOT using 'export' output in development mode
-  // Keep 'output' commented out to allow API routes to work
-  // output: 'standalone', // Only use this in production build
-  distDir: 'dist',
+  // Export static HTML for Electron
+  output: 'export',
+  distDir: '.next',
+  outputFileTracingRoot: __dirname,
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
-  outputFileTracingRoot: __dirname,
   images: {
     unoptimized: true,
     domains: ['static1.e621.net']

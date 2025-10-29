@@ -198,9 +198,22 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     onClose()
   }
 
+  const chooseDownloadFolder = async () => {
+    try {
+      const api = (typeof window !== 'undefined' && (window as any).e621?.dialog) as any
+      const folder = await api?.chooseFolder?.()
+      if (folder) {
+        updateDownloadSettings({ location: folder })
+      }
+    } catch (e) {
+      console.error('Folder selection failed', e)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="w-full max-w-6xl max-h-[90vh] grid gap-6 border border-border/50 bg-background/95 backdrop-blur-xl p-6 lg:p-8 shadow-2xl rounded-2xl overflow-hidden">
+      {/* Modal container converted to flex with min-h-0 so inner content can scroll */}
+      <div className="w-full max-w-6xl max-h-[90vh] flex flex-col min-h-0 gap-6 border border-border/50 bg-background/95 backdrop-blur-xl p-6 lg:p-8 shadow-2xl rounded-2xl overflow-hidden">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
@@ -221,7 +234,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
 
         {/* Tab Navigation */}
-        <div className="border-b border-border/50 -mx-6 lg:-mx-8 px-6 lg:px-8 overflow-x-auto">
+        <div className="border-b border-border/50 -mx-6 lg:-mx-8 px-6 lg:px-8 overflow-x-auto overflow-y-hidden pb-1">
           <nav className="flex space-x-2 min-w-max">
             {[
               { id: 'account', label: 'Account', icon: User },
@@ -248,8 +261,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </nav>
         </div>
 
-        {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden -mx-6 lg:-mx-8 px-6 lg:px-8">
+  {/* Tab Content */}
+  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden -mx-6 lg:-mx-8 px-6 lg:px-8">
           {activeTab === 'account' && (
             <div className="space-y-8">
               <div>
@@ -326,10 +339,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       </span>
                     </div>
                     <div className="flex items-center space-x-4">
-                      <span className="text-xs text-muted-foreground min-w-[30px]">10%</span>
+                      <span className="text-xs text-muted-foreground min-w-[30px]">70%</span>
                       <input
                         type="range"
-                        min="10"
+                        min="70"
                         max="300"
                         step="5"
                         value={uiScaleSettings.scale}
@@ -552,15 +565,24 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   {/* Download Location */}
                   <div>
                     <label className="text-sm font-medium">Download Location</label>
-                    <input
-                      type="text"
-                      value={downloadState.settings.location}
-                      onChange={(e) => updateDownloadSettings({ location: e.target.value })}
-                      className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-                      placeholder="downloads"
-                    />
+                    <div className="mt-1 flex gap-2">
+                      <input
+                        type="text"
+                        value={downloadState.settings.location}
+                        onChange={(e) => updateDownloadSettings({ location: e.target.value })}
+                        className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                        placeholder="downloads"
+                      />
+                      <button
+                        type="button"
+                        onClick={chooseDownloadFolder}
+                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 border border-input bg-background/50 shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-3"
+                      >
+                        Browse…
+                      </button>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                      The directory where downloads will be saved
+                      Absolute paths save directly to that folder. Relative paths are placed under your system Downloads.
                     </p>
                   </div>
 

@@ -70,7 +70,10 @@
       "package.json"
     ],
     "win": {
-      "target": "dir",
+      "target": [
+        "dir",
+        "portable"
+      ],
       "sign": false,
       "signingHashAlgorithms": []
     },

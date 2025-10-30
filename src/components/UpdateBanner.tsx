@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useDeveloperSettings } from "@/hooks/useDeveloperSettings";
 
 interface UpdateInfo {
   currentVersion: string;
@@ -12,8 +13,14 @@ interface UpdateInfo {
 
 export default function UpdateBanner() {
   const [info, setInfo] = useState<UpdateInfo | null>(null);
+  const { settings: devSettings } = useDeveloperSettings();
 
   useEffect(() => {
+    // Respect user setting: only check and subscribe when enabled
+    if (!devSettings.updateChecksEnabled) {
+      setInfo(null);
+      return;
+    }
     if (typeof window === "undefined") return;
     const api = (window as any).e621?.updater;
     if (!api) return;
@@ -28,7 +35,7 @@ export default function UpdateBanner() {
     }).catch(() => {});
 
     return () => { try { off && off(); } catch {} };
-  }, []);
+  }, [devSettings.updateChecksEnabled]);
 
   if (!info) return null;
 

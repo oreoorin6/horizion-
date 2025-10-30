@@ -10,6 +10,7 @@ export interface DeveloperSettings {
   showWarningLogs: boolean
   maxLogEntries: number
   persistLogs: boolean
+  updateChecksEnabled: boolean
 }
 
 const defaultSettings: DeveloperSettings = {
@@ -19,7 +20,8 @@ const defaultSettings: DeveloperSettings = {
   showErrorLogs: true,
   showWarningLogs: true,
   maxLogEntries: 1000,
-  persistLogs: true
+  persistLogs: true,
+  updateChecksEnabled: true
 }
 
 function loadDeveloperSettings(): DeveloperSettings {

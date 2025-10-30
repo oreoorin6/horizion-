@@ -33,6 +33,11 @@ jobs:
           HORIZON_UPDATER_ENABLED: '1'
         run: npm run dist
 
+      - name: Create source archive (zip)
+        run: |
+          git archive --format zip --output source-v${{ github.ref_name }}.zip HEAD
+        shell: bash
+
       - name: List dist contents (debug)
         run: |
           Get-ChildItem -Recurse dist | ForEach-Object { $_.FullName }
@@ -43,6 +48,7 @@ jobs:
         with:
           files: |
             dist\**\*.exe
+            source-v${{ github.ref_name }}.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

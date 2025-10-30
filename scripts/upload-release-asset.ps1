@@ -17,8 +17,21 @@ if (-not (Test-Path -Path $FilePath)) {
   exit 1
 }
 
+# Resolve token from env/param or local secure store under %APPDATA%\E621Horizon\secrets
 if (-not $Token) {
-  Write-Error "Missing GitHub token. Set GH_TOKEN environment variable or pass -Token."
+  try {
+    $secretPath = Join-Path $env:APPDATA "E621Horizon\secrets\gh_token.dat"
+    if (Test-Path -Path $secretPath) {
+      $enc = Get-Content -Raw -Path $secretPath
+      $sec = ConvertTo-SecureString $enc
+      $ptr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+      try { $Token = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) } finally { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+    }
+  } catch {}
+}
+
+if (-not $Token) {
+  Write-Error "Missing GitHub token. Set GH_TOKEN, pass -Token, or store it via scripts/secrets/store-gh-token.ps1."
   exit 1
 }
 

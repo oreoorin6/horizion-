@@ -7,6 +7,7 @@ import { HomeSettingsProvider } from '@/context/HomeSettingsProvider'
 import { DownloadManagerProvider } from '../lib/download-manager'
 import ClientDownloadPanel from '../components/ClientDownloadPanel'
 import DebugConsole from '../components/DebugConsole'
+import UpdateBanner from '../components/UpdateBanner'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -28,6 +29,7 @@ export default function RootLayout({
             <HomeSettingsProvider>
               <DownloadManagerProvider>
                 <div className="bg-overlay fixed inset-0 bg-background/80 backdrop-blur-sm" style={{ zIndex: -1 }} />
+                <UpdateBanner />
                 {children}
                 <ClientDownloadPanel />
                 <DebugConsole title="E621 Horizon Debug Console" />

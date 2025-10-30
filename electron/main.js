@@ -20,6 +20,7 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let mainWindow
+let updateCheckTimer = null
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -144,6 +145,13 @@ app.whenReady().then(() => {
   })
 
   createWindow()
+
+  // Kick off update check (disabled in dev; can be disabled via env for forks)
+  try {
+    maybeCheckForUpdates()
+  } catch (e) {
+    console.warn('[Updater] Initial check failed:', e?.message)
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -329,4 +337,116 @@ ipcMain.handle('dialog:chooseFolder', async () => {
   })
   if (result.canceled || !result.filePaths?.length) return null
   return result.filePaths[0]
+})
+
+// ---------------------------
+// Lightweight update checker
+// ---------------------------
+
+function semverCompare(a, b) {
+  // normalize: strip leading 'v'
+  const pa = (a || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0)
+  const pb = (b || '').replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const da = pa[i] || 0
+    const db = pb[i] || 0
+    if (da > db) return 1
+    if (da < db) return -1
+  }
+  return 0
+}
+
+function fetchJson(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'E621Horizon-Updater/1.0',
+        'Accept': 'application/vnd.github+json'
+      }
+    }, res => {
+      if (res.statusCode && res.statusCode >= 400) {
+        res.resume()
+        return reject(new Error(`HTTP ${res.statusCode}`))
+      }
+      let data = ''
+      res.setEncoding('utf8')
+      res.on('data', chunk => (data += chunk))
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)) } catch (e) { reject(e) }
+      })
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+async function checkForUpdates() {
+  const currentVersion = app.getVersion()
+  const defaultRepo = 'oreoorin6/horizion-'
+  const repo = process.env.HORIZON_UPDATER_REPO || defaultRepo
+
+  const enabledByDefault = (repo === defaultRepo)
+  const explicitEnable = /^(1|true)$/i.test(process.env.HORIZON_UPDATER_ENABLED || '')
+  const explicitDisable = /^(1|true)$/i.test(process.env.HORIZON_UPDATER_DISABLED || '')
+  const enabled = !isDev && !explicitDisable && (enabledByDefault || explicitEnable)
+
+  if (!enabled) {
+    // Silently skip on forks or when disabled
+    return { enabled: false }
+  }
+
+  const url = `https://api.github.com/repos/${repo}/releases/latest`
+  const json = await fetchJson(url)
+  const latestTag = json?.tag_name || ''
+  const latestVersion = latestTag.replace(/^v/, '')
+  const cmp = semverCompare(latestVersion, currentVersion)
+
+  if (cmp > 0) {
+    // Try find portable exe asset if present
+    let assetUrl = null
+    if (Array.isArray(json?.assets)) {
+      const portable = json.assets.find(a => /portable\.exe$/i.test(a?.name || ''))
+      assetUrl = portable?.browser_download_url || null
+    }
+    const releaseUrl = json?.html_url || `https://github.com/${repo}/releases/latest`
+    const payload = {
+      currentVersion,
+      latestVersion,
+      releaseName: json?.name || latestTag,
+      releaseUrl,
+      assetUrl
+    }
+    try { mainWindow?.webContents?.send('update:available', payload) } catch {}
+    return { enabled: true, update: payload }
+  }
+  return { enabled: true, update: null }
+}
+
+function maybeCheckForUpdates() {
+  // initial check
+  checkForUpdates().catch(err => console.warn('[Updater] check failed:', err?.message))
+  // re-check daily
+  clearInterval(updateCheckTimer)
+  updateCheckTimer = setInterval(() => {
+    checkForUpdates().catch(() => {})
+  }, 24 * 60 * 60 * 1000)
+}
+
+ipcMain.handle('update:checkNow', async () => {
+  try {
+    return await checkForUpdates()
+  } catch (e) {
+    return { enabled: false, error: e?.message || 'failed' }
+  }
+})
+
+ipcMain.handle('update:openRelease', async (_e, url) => {
+  try {
+    const { shell } = require('electron')
+    await shell.openExternal(url)
+    return true
+  } catch {
+    return false
+  }
 })

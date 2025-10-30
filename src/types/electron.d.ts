@@ -14,6 +14,11 @@ declare global {
       dialog?: {
         chooseFolder?: () => Promise<string | null>
       }
+      updater?: {
+        onAvailable?: (cb: (data: { currentVersion: string; latestVersion: string; releaseName?: string; releaseUrl: string; assetUrl?: string | null }) => void) => () => void
+        checkNow?: () => Promise<{ enabled: boolean; update?: { currentVersion: string; latestVersion: string; releaseName?: string; releaseUrl: string; assetUrl?: string | null } | null; error?: string }>
+        openRelease?: (url: string) => Promise<boolean>
+      }
     }
   }
 }

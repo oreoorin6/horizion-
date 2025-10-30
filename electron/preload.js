@@ -29,5 +29,14 @@ contextBridge.exposeInMainWorld('e621', {
   ,
   dialog: {
     chooseFolder: () => ipcRenderer.invoke('dialog:chooseFolder')
+  },
+  updater: {
+    onAvailable: (callback) => {
+      const listener = (_event, data) => callback(data)
+      ipcRenderer.on('update:available', listener)
+      return () => ipcRenderer.removeListener('update:available', listener)
+    },
+    checkNow: () => ipcRenderer.invoke('update:checkNow'),
+    openRelease: (url) => ipcRenderer.invoke('update:openRelease', url)
   }
 })

@@ -34,9 +34,9 @@ jobs:
         run: npm run dist
 
       - name: Create source archive (zip)
+        shell: pwsh
         run: |
-          git archive --format zip --output source-v${{ github.ref_name }}.zip HEAD
-        shell: bash
+          git archive --format=zip --output=source-v${{ github.ref_name }}.zip HEAD
 
       - name: List dist contents (debug)
         run: |
@@ -47,7 +47,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist\**\*.exe
+            dist/**/*.exe
             source-v${{ github.ref_name }}.zip
           generate_release_notes: true
         env:

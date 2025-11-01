@@ -79,12 +79,12 @@ npx electron-builder --config electron-builder.yml
 
 ### New Files:
 - ✅ `electron-builder.yml` - External config without signing
-- ✅ `quick-electron-build.ps1` - Updated to use new config
-- ✅ `quick-electron-build.bat` - Batch version
+- ✅ `build/quick-electron-build.ps1` - Updated to use new config
+- ✅ `build/quick-electron-build.bat` - Batch version
 
 ### Updated Files:
-- ✅ `build.ps1` - Now uses `electron-builder.yml`
-- ✅ `build.bat` - Now uses `electron-builder.yml`
+- ✅ `build/build.ps1` - Now uses `electron-builder.yml`
+- ✅ `build/build.bat` - Now uses `electron-builder.yml`
 
 ### Package.json Build Config:
 **Status:** Left as-is for reference, but overridden by `electron-builder.yml`
@@ -116,12 +116,12 @@ win:
 
 ### Quick Build (After npm run build):
 ```powershell
-.\quick-electron-build.ps1
+.\build\quick-electron-build.ps1
 ```
 
 ### Full Build:
 ```powershell
-.\build.ps1
+.\build\build.ps1
 # Choose [2] Production Build
 ```
 

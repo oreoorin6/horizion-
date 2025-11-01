@@ -53,7 +53,7 @@
   }
 
   /* Force dark theme by default */
-  :root {
+  body {
     --background: 345 35% 8%;
     --foreground: 0 0% 95%;
     --card: 345 25% 12%;

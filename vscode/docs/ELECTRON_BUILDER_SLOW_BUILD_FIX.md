@@ -25,12 +25,12 @@ Created two quick build scripts that skip the slow parts:
 
 #### PowerShell Version:
 ```powershell
-.\quick-electron-build.ps1
+.\build\quick-electron-build.ps1
 ```
 
 #### Batch Version:
 ```batch
-quick-electron-build.bat
+build\quick-electron-build.bat
 ```
 
 **What they do:**
@@ -47,14 +47,14 @@ quick-electron-build.bat
 Updated `build.ps1` and `build.bat` to include:
 
 ```powershell
-# In build.ps1 (PowerShell)
+# In build/build.ps1 (PowerShell)
 $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
 $env:ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES = "true"
 npx electron-builder --win dir --config.win.sign=null
 ```
 
 ```batch
-REM In build.bat (Batch)
+REM In build/build.bat (Batch)
 set CSC_IDENTITY_AUTO_DISCOVERY=false
 set ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES=true
 call npx electron-builder --win dir --config.win.sign=null
@@ -104,7 +104,7 @@ Total: ~30-40 seconds
 ### For Development:
 ```powershell
 # Option 1: Full dev mode
-.\build.ps1
+.\build\build.ps1
 # Choose [1] Development Mode
 
 # Option 2: Quick dev
@@ -118,7 +118,7 @@ npm run electron   # In terminal 2 (after dev server starts)
 npm run build
 
 # Step 2: Package Electron (fast with quick script - ~30 seconds)
-.\quick-electron-build.ps1
+.\build\quick-electron-build.ps1
 
 # Step 3: Run the app
 cd dist\win-unpacked
@@ -128,7 +128,7 @@ cd dist\win-unpacked
 ### For Complete Build:
 ```powershell
 # Use the updated build script
-.\build.ps1
+.\build\build.ps1
 # Choose [2] Production Build
 
 # Now much faster with updated config!

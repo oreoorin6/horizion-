@@ -8,7 +8,7 @@ Windows PowerShell:
 
 ```powershell
 # Install deps (recommended script)
-./install-dependencies.ps1
+./build/install-dependencies.ps1
 
 # Run Next.js + Electron together
 npm run electron-dev
@@ -35,6 +35,7 @@ npm run dist
 
 - FAQ: see [docs/FAQ.md](./docs/FAQ.md)
 - API references: see [docs/API_REFERENCES.md](./docs/API_REFERENCES.md)
+- Code signing (self-signing): see [docs/SIGNING.md](./docs/SIGNING.md)
 - Updates: see [CHANGELOG.md](./CHANGELOG.md)
 
 ## License and contributing

@@ -23,9 +23,9 @@ After Next.js builds the static export, we run a script that:
 ### 2. Build Script Integration
 
 The `fix-paths.js` script is integrated into:
-- **build.ps1** (PowerShell build script) - Step 2.5
-- **build.bat** (Batch build script) - Step 2.5
-- **quick-electron-build.ps1** (for manual use if needed)
+- **build/build.ps1** (PowerShell build script) - Step 2.5
+- **build/build.bat** (Batch build script) - Step 2.5
+- **build/quick-electron-build.ps1** (for manual use if needed)
 
 ## Implementation Details
 
@@ -69,11 +69,11 @@ The `file://` protocol treats `/` as the filesystem root, not the app directory.
 The path fix is now automatic when using the build scripts:
 ```powershell
 # PowerShell
-.\build.ps1
+.\build\build.ps1
 # Select option [2] for production build
 
 # Batch
-build.bat
+build\build.bat
 # Select option [2]
 ```
 

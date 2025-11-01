@@ -26,7 +26,7 @@ if (-not (Test-Path package.json)) { $restoreSucceeded = $false }
 # Try restore lockfile too if present in ref
 try {
   git checkout -- "$Ref" -- package-lock.json 2>$null
-} catch { }
+} catch { Write-Warning "Could not restore package-lock.json from $Ref`: $_" }
 
 if (-not $restoreSucceeded) {
   Write-Host "Could not restore from $Ref. Leaving backups in .backup" -ForegroundColor Yellow

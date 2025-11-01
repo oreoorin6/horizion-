@@ -27,7 +27,9 @@ if (-not $Token) {
       $ptr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
       try { $Token = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) } finally { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
     }
-  } catch {}
+  } catch {
+    Write-Error ("Failed to resolve token from secure store: {0}" -f $_)
+  }
 }
 
 if (-not $Token) {
@@ -45,6 +47,13 @@ function Get-ReleaseByTag {
   param([string]$Owner, [string]$Repo, [string]$Tag)
   $url = "https://api.github.com/repos/$Owner/$Repo/releases/tags/$Tag"
   return Invoke-RestMethod -Method GET -Uri $url -Headers $Headers -ErrorAction Stop
+}
+
+function New-Release {
+  param([string]$Owner, [string]$Repo, [string]$Tag)
+  $url = "https://api.github.com/repos/$Owner/$Repo/releases"
+  $body = @{ tag_name = $Tag; name = $Tag; draft = $false; prerelease = $false; generate_release_notes = $true } | ConvertTo-Json
+  return Invoke-RestMethod -Method POST -Uri $url -Headers $Headers -ContentType 'application/json' -Body $body -ErrorAction Stop
 }
 
 function Remove-ReleaseAssetIfExists {
@@ -76,8 +85,13 @@ function Add-ReleaseAsset {
 try {
   $release = Get-ReleaseByTag -Owner $Owner -Repo $Repo -Tag $Tag
 } catch {
-  Write-Error "Failed to get release for tag '$Tag'. Ensure the release exists. $_"
-  exit 1
+  Write-Warning "No release found for tag '$Tag' (or insufficient perms). Attempting to create one..."
+  try {
+    $release = New-Release -Owner $Owner -Repo $Repo -Tag $Tag
+  } catch {
+    Write-Error "Failed to create release for tag '$Tag'. $_"
+    exit 1
+  }
 }
 
 $assetName = [System.IO.Path]::GetFileName($FilePath)

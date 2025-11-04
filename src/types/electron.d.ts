@@ -19,6 +19,9 @@ declare global {
         checkNow?: () => Promise<{ enabled: boolean; update?: { currentVersion: string; latestVersion: string; releaseName?: string; releaseUrl: string; assetUrl?: string | null } | null; error?: string }>
         openRelease?: (url: string) => Promise<boolean>
       }
+      system?: {
+        getDefaultDownloadsPath?: () => Promise<string>
+      }
     }
   }
 }

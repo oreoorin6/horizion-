@@ -339,6 +339,11 @@ ipcMain.handle('dialog:chooseFolder', async () => {
   return result.filePaths[0]
 })
 
+// Get the default downloads path for the platform
+ipcMain.handle('system:getDefaultDownloadsPath', () => {
+  return app.getPath('downloads')
+})
+
 // ---------------------------
 // Lightweight update checker
 // ---------------------------

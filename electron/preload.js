@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('e621', {
   dialog: {
     chooseFolder: () => ipcRenderer.invoke('dialog:chooseFolder')
   },
+  system: {
+    getDefaultDownloadsPath: () => ipcRenderer.invoke('system:getDefaultDownloadsPath')
+  },
   updater: {
     onAvailable: (callback) => {
       const listener = (_event, data) => callback(data)

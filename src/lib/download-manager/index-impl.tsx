@@ -11,10 +11,10 @@ import {
   SelectionState
 } from './types';
 
-// Define default settings
+// Define default settings (location will be updated when component mounts)
 const defaultSettings: DownloadSettings = {
   quality: 'original',
-  location: 'downloads',
+  location: 'downloads', // Will be replaced with actual Windows Downloads path
   filenameTemplate: '{artist}_{id}.{ext}',
   maxConcurrentDownloads: 3,
   showNotifications: true,
@@ -314,21 +314,49 @@ const DownloadManagerContext = createContext<DownloadManagerContextValue | undef
 export function DownloadManagerProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(downloadManagerReducer, initialState);
   
-  // Load settings from localStorage on mount
+  // Initialize with proper Windows Downloads path and load settings from localStorage on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    try {
-      const savedSettings = localStorage.getItem('e621-download-settings');
-      if (savedSettings) {
-        dispatch({ 
-          type: 'UPDATE_SETTINGS', 
-          payload: JSON.parse(savedSettings)
-        });
+    const initializeSettings = async () => {
+      try {
+        // Get the actual Windows Downloads path
+        const api = (window as any).e621?.system;
+        let defaultDownloadsPath = 'downloads'; // fallback
+        
+        if (api && typeof api.getDefaultDownloadsPath === 'function') {
+          try {
+            defaultDownloadsPath = await api.getDefaultDownloadsPath();
+          } catch (error) {
+            console.warn('Failed to get system downloads path, using fallback:', error);
+          }
+        }
+        
+        // Load saved settings or apply defaults with proper downloads path
+        const savedSettings = localStorage.getItem('e621-download-settings');
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          // If the saved location is still the old 'downloads' default, update it
+          if (parsed.location === 'downloads') {
+            parsed.location = defaultDownloadsPath;
+          }
+          dispatch({ 
+            type: 'UPDATE_SETTINGS', 
+            payload: parsed
+          });
+        } else {
+          // First time setup - use proper downloads path
+          dispatch({ 
+            type: 'UPDATE_SETTINGS', 
+            payload: { location: defaultDownloadsPath }
+          });
+        }
+      } catch (error) {
+        console.error('Failed to initialize download settings:', error);
       }
-    } catch (error) {
-      console.error('Failed to load download settings:', error);
-    }
+    };
+    
+    initializeSettings();
   }, []);
   
   // Save settings to localStorage when changed
